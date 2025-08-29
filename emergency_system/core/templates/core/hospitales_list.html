@@ -4,33 +4,131 @@
  table { width: 100%; border-collapse: collapse; }
  th, td { border: 1px solid #1f2937; padding: 8px; }
  th { background: #0b1220; }
+ .stats { display: flex; gap: 15px; margin-bottom: 15px; font-size: 13px; flex-wrap: wrap; }
+ .stat-item { background: #0f172a; padding: 8px 12px; border-radius: 6px; }
+ .stat-value { font-weight: bold; font-size: 16px; }
+ .disponible { color: #22c55e; }
+ .ocupado { color: #ef4444; }
+ .total { color: #3b82f6; }
+ .progress-bar { background-color: #1f2937; height: 8px; border-radius: 4px; overflow: hidden; margin: 4px 0; }
+ .progress-fill { height: 100%; transition: width 0.3s ease; }
+ .progress-fill.disponible { background-color: #22c55e; }
+ .progress-fill.ocupado { background-color: #ef4444; }
+ tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+ .hospital-name { font-weight: bold; }
+ .capacity-cell { min-width: 120px; }
+ .bed-indicator { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
 {% endblock %}
 {% block content %}
-  <h1>Listado de Hospitales</h1>
+  <h1>🏥 Red Hospitalaria</h1>
+  
+  <!-- Estadísticas generales -->
+  <div class="stats">
+    <div class="stat-item">
+      <div style="color: var(--text);">Hospitales Activos</div>
+      <div class="stat-value">{{ stats.total_hospitales }}</div>
+    </div>
+    <div class="stat-item">
+      <div class="total">● Camas Totales</div>
+      <div class="stat-value">{{ stats.camas_totales }}</div>
+    </div>
+    <div class="stat-item">
+      <div class="ocupado">● Camas Ocupadas</div>
+      <div class="stat-value">{{ stats.camas_ocupadas }}</div>
+    </div>
+    <div class="stat-item">
+      <div class="disponible">● Camas Disponibles</div>
+      <div class="stat-value">{{ stats.camas_disponibles }}</div>
+    </div>
+    <div class="stat-item">
+      <div style="color: var(--text);">Ocupación Promedio</div>
+      <div class="stat-value">{{ stats.porcentaje_ocupacion }}%</div>
+    </div>
+  </div>
+
   <div class="card"><div class="body">
   <table>
     <thead>
       <tr>
-        <th>Nombre</th>
+        <th>Hospital</th>
         <th>Dirección</th>
-        <th>Camas Totales</th>
-        <th>Camas Ocupadas</th>
-        <th>Camas Disponibles</th>
+        <th>Capacidad</th>
+        <th>Estado Actual</th>
+        <th>Disponibilidad</th>
+        <th>Ubicación</th>
       </tr>
     </thead>
     <tbody>
-      {% for h in hospitales %}
+      {% for item in hospitales_data %}
+      {% with h=item.hospital %}
       <tr>
-        <td>{{ h.name }}</td>
-        <td>{{ h.address }}</td>
-        <td>{{ h.total_beds }}</td>
-        <td>{{ h.occupied_beds }}</td>
-        <td>{{ h.available_beds }}</td>
+        <td class="hospital-name">{{ h.name }}</td>
+        <td>{{ h.address|truncatechars:60 }}</td>
+        <td class="capacity-cell">
+          <div><strong>{{ h.total_beds }}</strong> camas totales</div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">
+            Capacidad instalada
+          </div>
+        </td>
+        <td>
+          <div style="margin-bottom: 4px;">
+            <span class="bed-indicator ocupado" style="background: #ef4444;"></span>
+            <strong style="color: #ef4444;">{{ h.occupied_beds }}</strong> ocupadas
+          </div>
+          <div>
+            <span class="bed-indicator disponible" style="background: #22c55e;"></span>
+            <strong style="color: #22c55e;">{{ h.available_beds }}</strong> disponibles
+          </div>
+        </td>
+        <td>
+          <div style="text-align: center; margin-bottom: 4px;">
+            <strong>{{ item.occupancy_percentage }}%</strong>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill {% if item.occupancy_percentage > 80 %}ocupado{% else %}disponible{% endif %}" 
+                 style="width: {{ item.occupancy_percentage }}%;"></div>
+          </div>
+          <div style="font-size: 10px; color: var(--muted); text-align: center; margin-top: 2px;">
+            {% if item.occupancy_percentage > 90 %}
+              Crítico
+            {% elif item.occupancy_percentage > 80 %}
+              Alto
+            {% elif item.occupancy_percentage > 60 %}
+              Medio
+            {% else %}
+              Normal
+            {% endif %}
+          </div>
+        </td>
+        <td>
+          {% if h.lat and h.lon %}
+            {{ h.lat|floatformat:4 }}, {{ h.lon|floatformat:4 }}
+          {% else %}
+            <span style="color: var(--muted);">Sin coordenadas</span>
+          {% endif %}
+        </td>
       </tr>
+      {% endwith %}
       {% empty %}
-      <tr><td colspan="5">No hay hospitales cargados.</td></tr>
+      <tr><td colspan="6" style="text-align: center; color: var(--muted);">No hay hospitales cargados en el sistema.</td></tr>
       {% endfor %}
     </tbody>
   </table>
   </div></div>
+
+  <!-- Resumen por capacidad -->
+  <div class="stats" style="margin-top: 15px;">
+    <div class="stat-item">
+      <div style="color: #22c55e;">🟢 Disponibilidad Normal (&lt;60%)</div>
+      <div class="stat-value">{{ stats.hospitales_normal }}</div>
+    </div>
+    <div class="stat-item">
+      <div style="color: #f59e0b;">🟡 Ocupación Media (60-80%)</div>
+      <div class="stat-value">{{ stats.hospitales_medio }}</div>
+    </div>
+    <div class="stat-item">
+      <div style="color: #ef4444;">🔴 Ocupación Alta (&gt;80%)</div>
+      <div class="stat-value">{{ stats.hospitales_alto }}</div>
+    </div>
+  </div>
 {% endblock %}

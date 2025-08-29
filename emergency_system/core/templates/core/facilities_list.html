@@ -4,41 +4,150 @@
  table { width: 100%; border-collapse: collapse; }
  th, td { border: 1px solid #1f2937; padding: 8px; }
  th { background: #0b1220; }
- .filters a { margin-right: 10px; }
+ .filters { margin-bottom: 15px; }
+ .filters a { margin-right: 10px; padding: 8px 12px; }
+ .filters a.active { background: var(--primary); color: white; }
+ .stats { display: flex; gap: 15px; margin-bottom: 15px; font-size: 13px; flex-wrap: wrap; }
+ .stat-item { background: #0f172a; padding: 8px 12px; border-radius: 6px; }
+ .stat-value { font-weight: bold; font-size: 16px; }
+ .comisaria { color: #3b82f6; }
+ .cuartel { color: #ef4444; }
+ .base_transito { color: #f59e0b; }
+ .hospital { color: #22c55e; }
+ tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+ .installation-name { font-weight: bold; }
+ .type-badge { 
+   display: inline-block; 
+   padding: 2px 6px; 
+   border-radius: 4px; 
+   font-size: 11px; 
+   font-weight: bold;
+ }
+ .type-badge.comisaria { background: #1e40af; color: white; }
+ .type-badge.cuartel { background: #dc2626; color: white; }
+ .type-badge.base_transito { background: #d97706; color: white; }
+ .type-badge.hospital { background: #16a34a; color: white; }
+ .force-badge {
+   display: inline-block;
+   padding: 1px 4px;
+   border-radius: 3px;
+   font-size: 10px;
+   background: #374151;
+   color: #d1d5db;
+ }
 {% endblock %}
 {% block content %}
-  <h1>Instalaciones</h1>
-  <div class="filters" style="margin-bottom:12px;">
-    <a class="btn" href="{% url 'facilities_list' %}">Todas</a>
-    <a class="btn" href="{% url 'facilities_list' %}?tipo=comisaria">Comisarías</a>
-    <a class="btn" href="{% url 'facilities_list' %}?tipo=cuartel">Cuarteles</a>
-    <a class="btn" href="{% url 'facilities_list' %}?tipo=base_transito">Bases de Tránsito</a>
-    <a class="btn" href="{% url 'facilities_list' %}?tipo=hospital">Hospitales</a>
+  <h1>🏢 Red de Instalaciones</h1>
+  
+  <!-- Estadísticas generales -->
+  <div class="stats">
+    <div class="stat-item">
+      <div style="color: var(--text);">Total Instalaciones</div>
+      <div class="stat-value">{{ stats.total_instalaciones }}</div>
+    </div>
+    <div class="stat-item">
+      <div class="comisaria">● Comisarías</div>
+      <div class="stat-value">{{ stats.comisarias }}</div>
+    </div>
+    <div class="stat-item">
+      <div class="cuartel">● Cuarteles</div>
+      <div class="stat-value">{{ stats.cuarteles }}</div>
+    </div>
+    <div class="stat-item">
+      <div class="base_transito">● Bases de Tránsito</div>
+      <div class="stat-value">{{ stats.bases_transito }}</div>
+    </div>
+    <div class="stat-item">
+      <div class="hospital">● Hospitales</div>
+      <div class="stat-value">{{ stats.hospitales }}</div>
+    </div>
   </div>
+
+  <!-- Filtros mejorados -->
+  <div class="filters">
+    <a class="btn {% if not kind %}active{% endif %}" href="{% url 'facilities_list' %}">
+      📋 Todas ({{ stats.total_instalaciones }})
+    </a>
+    <a class="btn {% if kind == 'comisaria' %}active{% endif %}" href="{% url 'facilities_list' %}?tipo=comisaria">
+      🚔 Comisarías ({{ stats.comisarias }})
+    </a>
+    <a class="btn {% if kind == 'cuartel' %}active{% endif %}" href="{% url 'facilities_list' %}?tipo=cuartel">
+      🚒 Cuarteles ({{ stats.cuarteles }})
+    </a>
+    <a class="btn {% if kind == 'base_transito' %}active{% endif %}" href="{% url 'facilities_list' %}?tipo=base_transito">
+      🚦 Bases de Tránsito ({{ stats.bases_transito }})
+    </a>
+    <a class="btn {% if kind == 'hospital' %}active{% endif %}" href="{% url 'facilities_list' %}?tipo=hospital">
+      🏥 Hospitales ({{ stats.hospitales }})
+    </a>
+  </div>
+  
   <div class="card"><div class="body">
   <table>
     <thead>
       <tr>
-        <th>Nombre</th>
+        <th>Instalación</th>
         <th>Tipo</th>
         <th>Fuerza</th>
         <th>Dirección</th>
-        <th>Lat/Lon</th>
+        <th>Coordenadas</th>
       </tr>
     </thead>
     <tbody>
       {% for installation in installations %}
       <tr>
-        <td>{{ installation.name }}</td>
-        <td>{{ installation.kind_display }}</td>
-        <td>{{ installation.force_name }}</td>
-        <td>{{ installation.address }}</td>
-        <td>{% if installation.lat and installation.lon %}{{ installation.lat }}, {{ installation.lon }}{% else %}-{% endif %}</td>
+        <td class="installation-name">{{ installation.name }}</td>
+        <td>
+          <span class="type-badge {{ installation.kind }}">
+            {{ installation.kind_display }}
+          </span>
+        </td>
+        <td>
+          {% if installation.force_name %}
+            <span class="force-badge">{{ installation.force_name }}</span>
+          {% else %}
+            <span style="color: var(--muted);">-</span>
+          {% endif %}
+        </td>
+        <td>
+          {{ installation.address|truncatechars:80 }}
+        </td>
+        <td>
+          {% if installation.lat and installation.lon %}
+            <code>{{ installation.lat|floatformat:4 }}, {{ installation.lon|floatformat:4 }}</code>
+          {% else %}
+            <span style="color: var(--muted);">Sin coordenadas</span>
+          {% endif %}
+        </td>
       </tr>
       {% empty %}
-      <tr><td colspan="5">No hay instalaciones cargadas.</td></tr>
+      <tr><td colspan="5" style="text-align: center; color: var(--muted);">
+        {% if kind %}
+          No hay instalaciones del tipo "{{ kind }}" cargadas.
+        {% else %}
+          No hay instalaciones cargadas en el sistema.
+        {% endif %}
+      </td></tr>
       {% endfor %}
     </tbody>
   </table>
   </div></div>
+
+  <!-- Información adicional -->
+  {% if installations %}
+  <div class="stats" style="margin-top: 15px;">
+    <div class="stat-item">
+      <div style="color: #22c55e;">📍 Con Coordenadas</div>
+      <div class="stat-value">{{ stats.con_coordenadas }}</div>
+    </div>
+    <div class="stat-item">
+      <div style="color: #ef4444;">📍 Sin Coordenadas</div>
+      <div class="stat-value">{{ stats.sin_coordenadas }}</div>
+    </div>
+    <div class="stat-item">
+      <div style="color: #3b82f6;">🌐 Cobertura Geográfica</div>
+      <div class="stat-value">{{ stats.porcentaje_coordenadas }}%</div>
+    </div>
+  </div>
+  {% endif %}
 {% endblock %}

@@ -187,7 +187,28 @@ def emergency_detail(request, pk):
 
 def agentes_list(request):
     agentes = Agent.objects.select_related('force', 'assigned_vehicle').all().order_by('force__name','name')
-    return render(request, 'core/agentes_list.html', {'agentes': agentes})
+    fuerzas = Force.objects.all().order_by('name')
+    
+    # Calcular estadísticas
+    total = agentes.count()
+    disponibles = agentes.filter(status='disponible').count()
+    en_ruta = agentes.filter(status='en_ruta').count()
+    ocupados = agentes.filter(status='ocupado').count()
+    en_escena = agentes.filter(status='en_escena').count()
+    
+    stats = {
+        'total': total,
+        'disponibles': disponibles,
+        'en_ruta': en_ruta,
+        'ocupados': ocupados,
+        'en_escena': en_escena
+    }
+    
+    return render(request, 'core/agentes_list.html', {
+        'agentes': agentes,
+        'fuerzas': fuerzas,
+        'stats': stats
+    })
 
 
 def unidades_por_fuerza(request):
@@ -195,13 +216,77 @@ def unidades_por_fuerza(request):
     data = []
     for f in fuerzas:
         unidades = Vehicle.objects.filter(force=f)
-        data.append({'force': f, 'unidades': unidades})
+        
+        # Calcular estadísticas
+        total = unidades.count()
+        disponibles = unidades.filter(status='disponible').count()
+        en_ruta = unidades.filter(status='en_ruta').count()
+        ocupados = unidades.filter(status='ocupado').count()
+        
+        data.append({
+            'force': f, 
+            'unidades': unidades,
+            'stats': {
+                'total': total,
+                'disponibles': disponibles,
+                'en_ruta': en_ruta,
+                'ocupados': ocupados,
+                'porcentaje_disponible': round((disponibles / total * 100) if total > 0 else 0, 1)
+            }
+        })
     return render(request, 'core/unidades_por_fuerza.html', {'data': data})
 
 
 def hospitales_list(request):
     hospitales = Hospital.objects.all().order_by('name')
-    return render(request, 'core/hospitales_list.html', {'hospitales': hospitales})
+    
+    # Calcular estadísticas generales
+    total_hospitales = hospitales.count()
+    camas_totales = sum(h.total_beds for h in hospitales)
+    camas_ocupadas = sum(h.occupied_beds for h in hospitales)
+    camas_disponibles = camas_totales - camas_ocupadas
+    porcentaje_ocupacion = round((camas_ocupadas / camas_totales * 100) if camas_totales > 0 else 0, 1)
+    
+    # Estadísticas por nivel de ocupación
+    hospitales_normal = 0  # <60%
+    hospitales_medio = 0   # 60-80%
+    hospitales_alto = 0    # >80%
+    
+    # Agregar datos calculados a cada hospital
+    hospitales_with_stats = []
+    for hospital in hospitales:
+        occupancy_percentage = round((hospital.occupied_beds / hospital.total_beds * 100) if hospital.total_beds > 0 else 0, 1)
+        
+        # Clasificar por nivel de ocupación
+        if occupancy_percentage < 60:
+            hospitales_normal += 1
+        elif occupancy_percentage <= 80:
+            hospitales_medio += 1
+        else:
+            hospitales_alto += 1
+        
+        # Crear un objeto con los datos calculados (sin modificar el modelo)
+        hospital_data = {
+            'hospital': hospital,
+            'occupancy_percentage': occupancy_percentage
+        }
+        hospitales_with_stats.append(hospital_data)
+    
+    stats = {
+        'total_hospitales': total_hospitales,
+        'camas_totales': camas_totales,
+        'camas_ocupadas': camas_ocupadas,
+        'camas_disponibles': camas_disponibles,
+        'porcentaje_ocupacion': porcentaje_ocupacion,
+        'hospitales_normal': hospitales_normal,
+        'hospitales_medio': hospitales_medio,
+        'hospitales_alto': hospitales_alto
+    }
+    
+    return render(request, 'core/hospitales_list.html', {
+        'hospitales_data': hospitales_with_stats,
+        'stats': stats
+    })
 
 
 def facilities_list(request):
@@ -233,6 +318,18 @@ def facilities_list(request):
             'lon': h.lon,
         })
 
+    # Calcular estadísticas antes del filtro
+    total_instalaciones = len(installations)
+    comisarias = len([i for i in installations if i['kind'] == 'comisaria'])
+    cuarteles = len([i for i in installations if i['kind'] == 'cuartel'])
+    bases_transito = len([i for i in installations if i['kind'] == 'base_transito'])
+    hospitales = len([i for i in installations if i['kind'] == 'hospital'])
+    
+    con_coordenadas = len([i for i in installations if i['lat'] and i['lon']])
+    sin_coordenadas = total_instalaciones - con_coordenadas
+    porcentaje_coordenadas = round((con_coordenadas / total_instalaciones * 100) if total_instalaciones > 0 else 0, 1)
+
+    # Aplicar filtro si existe
     if kind:
         allowed = {'comisaria', 'cuartel', 'base_transito', 'hospital'}
         if kind in allowed:
@@ -241,9 +338,21 @@ def facilities_list(request):
     # Ordenar por tipo y nombre
     installations.sort(key=lambda x: (x['kind_display'], x['name']))
 
+    stats = {
+        'total_instalaciones': total_instalaciones,
+        'comisarias': comisarias,
+        'cuarteles': cuarteles,
+        'bases_transito': bases_transito,
+        'hospitales': hospitales,
+        'con_coordenadas': con_coordenadas,
+        'sin_coordenadas': sin_coordenadas,
+        'porcentaje_coordenadas': porcentaje_coordenadas
+    }
+
     return render(request, 'core/facilities_list.html', {
         'installations': installations,
         'kind': kind,
+        'stats': stats
     })
 
 

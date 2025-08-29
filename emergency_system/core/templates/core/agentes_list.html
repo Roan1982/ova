@@ -4,33 +4,128 @@
  table { width: 100%; border-collapse: collapse; }
  th, td { border: 1px solid #1f2937; padding: 8px; }
  th { background: #0b1220; }
+ .stats { display: flex; gap: 15px; margin-bottom: 15px; font-size: 13px; flex-wrap: wrap; }
+ .stat-item { background: #0f172a; padding: 8px 12px; border-radius: 6px; }
+ .stat-value { font-weight: bold; font-size: 16px; }
+ .disponible { color: #22c55e; }
+ .en_ruta { color: #f59e0b; }
+ .ocupado { color: #ef4444; }
+ .en_escena { color: #8b5cf6; }
+ .filters { margin-bottom: 15px; }
+ .filters select { background: var(--panel); color: var(--text); border: 1px solid #1f2937; padding: 6px 10px; border-radius: 4px; }
 {% endblock %}
 {% block content %}
-  <h1>Listado de Agentes</h1>
+  <h1>👮 Listado de Agentes</h1>
+  
+  <!-- Estadísticas generales -->
+  <div class="stats">
+    <div class="stat-item">
+      <div class="disponible">● Disponibles</div>
+      <div class="stat-value">{{ stats.disponibles }}</div>
+    </div>
+    <div class="stat-item">
+      <div class="en_ruta">● En Ruta</div>
+      <div class="stat-value">{{ stats.en_ruta }}</div>
+    </div>
+    <div class="stat-item">
+      <div class="ocupado">● Ocupados</div>
+      <div class="stat-value">{{ stats.ocupados }}</div>
+    </div>
+    <div class="stat-item">
+      <div class="en_escena">● En Escena</div>
+      <div class="stat-value">{{ stats.en_escena }}</div>
+    </div>
+    <div class="stat-item">
+      <div style="color: var(--text);">Total</div>
+      <div class="stat-value">{{ stats.total }}</div>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="filters">
+    <label for="filterFuerza">Filtrar por fuerza:</label>
+    <select id="filterFuerza" onchange="filterTable()">
+      <option value="">Todas las fuerzas</option>
+      {% for fuerza in fuerzas %}
+        <option value="{{ fuerza.name }}">{{ fuerza.name }}</option>
+      {% endfor %}
+    </select>
+    
+    <label for="filterEstado" style="margin-left: 15px;">Filtrar por estado:</label>
+    <select id="filterEstado" onchange="filterTable()">
+      <option value="">Todos los estados</option>
+      <option value="disponible">Disponible</option>
+      <option value="en_ruta">En Ruta</option>
+      <option value="ocupado">Ocupado</option>
+      <option value="en_escena">En Escena</option>
+    </select>
+  </div>
+
   <div class="card"><div class="body">
-  <table>
+  <table id="agentesTable">
     <thead>
       <tr>
         <th>Nombre</th>
         <th>Fuerza</th>
         <th>Rol</th>
         <th>Estado</th>
-        <th>Vehículo</th>
+        <th>Vehículo Asignado</th>
+        <th>Ubicación</th>
       </tr>
     </thead>
     <tbody>
       {% for a in agentes %}
-      <tr>
-        <td>{{ a.name }}</td>
+      <tr data-fuerza="{{ a.force.name }}" data-estado="{{ a.status }}">
+        <td><strong>{{ a.name }}</strong></td>
         <td>{{ a.force.name }}</td>
         <td>{{ a.role }}</td>
-        <td>{{ a.status }}</td>
-        <td>{% if a.assigned_vehicle %}{{ a.assigned_vehicle.type }}{% else %}-{% endif %}</td>
+        <td>
+          <span class="{% if a.status == 'disponible' %}disponible{% elif a.status == 'en_ruta' %}en_ruta{% elif a.status == 'ocupado' %}ocupado{% else %}en_escena{% endif %}">
+            ● {{ a.status|title }}
+          </span>
+        </td>
+        <td>
+          {% if a.assigned_vehicle %}
+            {{ a.assigned_vehicle.type }}
+            <small style="color: var(--muted);">({{ a.assigned_vehicle.status }})</small>
+          {% else %}
+            <span style="color: var(--muted);">Sin vehículo</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if a.lat and a.lon %}
+            {{ a.lat|floatformat:4 }}, {{ a.lon|floatformat:4 }}
+          {% else %}
+            <span style="color: var(--muted);">Sin ubicación</span>
+          {% endif %}
+        </td>
       </tr>
       {% empty %}
-      <tr><td colspan="5">No hay agentes cargados.</td></tr>
+      <tr><td colspan="6" style="text-align: center; color: var(--muted);">No hay agentes cargados.</td></tr>
       {% endfor %}
     </tbody>
   </table>
   </div></div>
+
+  <script>
+    function filterTable() {
+      const fuerza = document.getElementById('filterFuerza').value.toLowerCase();
+      const estado = document.getElementById('filterEstado').value.toLowerCase();
+      const rows = document.querySelectorAll('#agentesTable tbody tr');
+      
+      rows.forEach(row => {
+        const rowFuerza = row.dataset.fuerza.toLowerCase();
+        const rowEstado = row.dataset.estado.toLowerCase();
+        
+        const matchFuerza = fuerza === '' || rowFuerza.includes(fuerza);
+        const matchEstado = estado === '' || rowEstado === estado;
+        
+        if (matchFuerza && matchEstado) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    }
+  </script>
 {% endblock %}
