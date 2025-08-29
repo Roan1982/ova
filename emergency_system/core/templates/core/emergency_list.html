@@ -1,0 +1,45 @@
+{% extends 'core/base.html' %}
+{% block title %}Lista de Emergencias{% endblock %}
+{% block extra_styles %}
+.tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; color: #fff; }
+.tag.rojo { background: #d9534f; }
+.tag.amarillo { background: #f0ad4e; }
+.tag.verde { background: #22c55e; }
+.card { background: var(--panel); border: 1px solid #1f2937; border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+.card-title { font-weight: bold; margin: 0 0 6px; }
+.card-meta { color: var(--muted); font-size: 13px; margin-bottom: 6px; }
+.card-actions a { margin-right: 10px; text-decoration: none; }
+.msg { padding: 8px 12px; border-radius: 6px; background: #0f2f1f; border: 1px solid #14532d; margin-bottom: 12px; }
+{% endblock %}
+{% block content %}
+    <h1>Lista de Emergencias</h1>
+    <div class="actions"><a class="btn" href="{% url 'create_emergency' %}">Reportar Emergencia</a></div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="msg">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    {% for emergency in emergencies %}
+        <div class="card">
+            <div class="card-title">
+                <span class="tag {{ emergency.code }}">{{ emergency.code|upper }}</span>
+                {{ emergency.description }}
+            </div>
+            <div class="card-meta">Dirección: {{ emergency.address }} | Estado: {{ emergency.status }} | Reportado: {{ emergency.reported_at|date:"d/m/Y H:i" }}</div>
+            {% if emergency.onda_verde %}<div class="card-meta">Onda Verde: ACTIVADA</div>{% endif %}
+            {% if emergency.assigned_force %}
+                <div class="card-meta">Fuerza: {{ emergency.assigned_force.name }} {% if emergency.assigned_vehicle %}| Vehículo: {{ emergency.assigned_vehicle.type }}{% endif %}</div>
+            {% endif %}
+            <div class="card-actions">
+                <a href="{% url 'emergency_detail' emergency.id %}">Detalle</a>
+                {% if emergency.status == 'pendiente' %}
+                    <a href="{% url 'process_emergency' emergency.id %}">Procesar con IA</a>
+                {% endif %}
+            </div>
+        </div>
+    {% empty %}
+        <p>No hay emergencias cargadas.</p>
+    {% endfor %}
+{% endblock %}

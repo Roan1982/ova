@@ -1,0 +1,41 @@
+{% extends 'core/base.html' %}
+{% block title %}Detalle de Emergencia{% endblock %}
+{% block extra_styles %}
+.tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; color: #fff; }
+.tag.rojo { background: #d9534f; }
+.tag.amarillo { background: #f0ad4e; }
+.tag.verde { background: #22c55e; }
+pre { background: #0b1220; padding: 10px; border-radius: 6px; white-space: pre-wrap; border:1px solid #1f2937; }
+{% endblock %}
+{% block content %}
+    <h1>Emergencia #{{ emergency.id }} <span class="tag {{ emergency.code }}">{{ emergency.code|upper }}</span></h1>
+    <p><strong>Descripción:</strong> {{ emergency.description }}</p>
+    <p><strong>Dirección:</strong> {{ emergency.address }}</p>
+    <p><strong>Estado:</strong> {{ emergency.status }} {% if emergency.onda_verde %} | <strong>Onda Verde:</strong> ACTIVADA{% endif %}</p>
+    {% if emergency.assigned_force %}
+        <p><strong>Fuerza:</strong> {{ emergency.assigned_force.name }} {% if emergency.assigned_vehicle %} | <strong>Vehículo:</strong> {{ emergency.assigned_vehicle.type }}{% endif %}</p>
+    {% endif %}
+
+    <h3>Informe de Proceso</h3>
+    <pre>{{ emergency.resolution_notes }}</pre>
+
+    {% if emergency.dispatches.all %}
+    <h3>Despachos</h3>
+    <ul>
+        {% for d in emergency.dispatches.all %}
+            <li>{{ d.force.name }} {% if d.vehicle %}- Vehículo: {{ d.vehicle.type }}{% endif %} - Estado: {{ d.status }} - {{ d.created_at|date:"d/m/Y H:i" }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    <div class="actions">
+        <a class="btn" href="{% url 'emergency_list' %}">Volver a la Lista</a>
+        {% if emergency.status != 'resuelta' %}
+        <form method="post" action="{% url 'resolve_emergency' emergency.id %}" style="display:inline;">
+            {% csrf_token %}
+            <input type="text" name="notas" placeholder="Notas de resolución (opcional)" style="width: 400px;">
+            <button class="btn" type="submit">Marcar como Resuelta</button>
+        </form>
+        {% endif %}
+    </div>
+{% endblock %}

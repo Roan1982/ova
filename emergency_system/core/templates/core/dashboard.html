@@ -1,0 +1,30 @@
+{% extends 'core/base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block extra_styles %}
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.card { background: var(--panel); border: 1px solid #1f2937; border-radius: 8px; padding: 14px; }
+.title { font-weight: bold; margin-bottom: 6px; }
+.value { font-size: 24px; }
+.sub { color: var(--muted); font-size: 12px; }
+@media (max-width: 900px){ .cards { grid-template-columns: 1fr; } }
+{% endblock %}
+{% block content %}
+  <h1>Dashboard de Recursos</h1>
+  <div class="cards">
+    <div class="card">
+      <div class="title">Vehículos Totales</div>
+      <div class="value">{{ total_vehiculos }}</div>
+      <div class="sub">Disponibles: {{ disponibles_vehiculos }} | Ocupados/En ruta: {{ ocupados_vehiculos }}</div>
+    </div>
+    <div class="card">
+      <div class="title">Camas</div>
+      <div class="value">{{ camas_disponibles }} disponibles</div>
+      <div class="sub">Totales: {{ camas_totales }} | Ocupadas: {{ camas_ocupadas }}</div>
+    </div>
+    <div class="card">
+      <div class="title">Despachos Activos</div>
+      <div class="value">{{ despachos_activos }}</div>
+      <div class="sub">Intervenciones en curso</div>
+    </div>
+  </div>
+{% endblock %}

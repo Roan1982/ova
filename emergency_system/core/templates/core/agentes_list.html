@@ -1,0 +1,36 @@
+{% extends 'core/base.html' %}
+{% block title %}Agentes{% endblock %}
+{% block extra_styles %}
+ table { width: 100%; border-collapse: collapse; }
+ th, td { border: 1px solid #1f2937; padding: 8px; }
+ th { background: #0b1220; }
+{% endblock %}
+{% block content %}
+  <h1>Listado de Agentes</h1>
+  <div class="card"><div class="body">
+  <table>
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>Fuerza</th>
+        <th>Rol</th>
+        <th>Estado</th>
+        <th>Vehículo</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in agentes %}
+      <tr>
+        <td>{{ a.name }}</td>
+        <td>{{ a.force.name }}</td>
+        <td>{{ a.role }}</td>
+        <td>{{ a.status }}</td>
+        <td>{% if a.assigned_vehicle %}{{ a.assigned_vehicle.type }}{% else %}-{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5">No hay agentes cargados.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div></div>
+{% endblock %}

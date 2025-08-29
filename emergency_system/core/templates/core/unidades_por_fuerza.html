@@ -1,0 +1,38 @@
+{% extends 'core/base.html' %}
+{% block title %}Unidades por Fuerza{% endblock %}
+{% block extra_styles %}
+ .force { margin-bottom: 20px; }
+ table { width: 100%; border-collapse: collapse; }
+ th, td { border: 1px solid #1f2937; padding: 8px; }
+ th { background: #0b1220; }
+{% endblock %}
+{% block content %}
+  <h1>Unidades por Fuerza</h1>
+  {% for item in data %}
+  <div class="force card">
+    <h2 style="padding:12px 16px; margin:0; border-bottom:1px solid #1f2937;">{{ item.force.name }}</h2>
+    <div class="body">
+    <table>
+      <thead>
+        <tr>
+          <th>Tipo</th>
+          <th>Estado</th>
+          <th>Lat/Lon</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in item.unidades %}
+        <tr>
+          <td>{{ v.type }}</td>
+          <td>{{ v.status }}</td>
+          <td>{{ v.current_lat }}, {{ v.current_lon }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3">No hay unidades.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+  {% endfor %}
+{% endblock %}

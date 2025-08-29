@@ -1,0 +1,41 @@
+{% extends 'core/base.html' %}
+{% block title %}Reportar Emergencia{% endblock %}
+{% block extra_head %}<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>{% endblock %}
+{% block content %}
+    <h1>Reportar una Nueva Emergencia</h1>
+    <div id="map" style="height: 360px; border-radius:12px; overflow:hidden;"></div>
+    <form method="post" style="margin-top:12px;">
+        {% csrf_token %}
+        <div class="card">
+          <div class="body">
+            {{ form.as_p }}
+            <input type="hidden" name="location_lat" id="id_location_lat">
+            <input type="hidden" name="location_lon" id="id_location_lon">
+            <button class="btn" type="submit">Enviar</button>
+          </div>
+        </div>
+    </form>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+    var map = L.map('map').setView([-34.6037, -58.3816], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    var marker;
+    map.on('click', async function(e) {
+        if (marker) map.removeLayer(marker);
+        marker = L.marker(e.latlng).addTo(map);
+
+        document.getElementById('id_location_lat').value = e.latlng.lat;
+        document.getElementById('id_location_lon').value = e.latlng.lng;
+
+        // Reverse geocode to get address
+        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${e.latlng.lat}&lon=${e.latlng.lng}`;
+        const response = await fetch(url, { headers: { 'User-Agent': 'emergency_app/1.0' } });
+        const data = await response.json();
+        if (data && data.display_name) {
+            document.getElementById('id_address').value = data.display_name;
+        }
+    });
+</script>
+{% endblock %}

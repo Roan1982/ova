@@ -1,0 +1,36 @@
+{% extends 'core/base.html' %}
+{% block title %}Hospitales{% endblock %}
+{% block extra_styles %}
+ table { width: 100%; border-collapse: collapse; }
+ th, td { border: 1px solid #1f2937; padding: 8px; }
+ th { background: #0b1220; }
+{% endblock %}
+{% block content %}
+  <h1>Listado de Hospitales</h1>
+  <div class="card"><div class="body">
+  <table>
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>Dirección</th>
+        <th>Camas Totales</th>
+        <th>Camas Ocupadas</th>
+        <th>Camas Disponibles</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for h in hospitales %}
+      <tr>
+        <td>{{ h.name }}</td>
+        <td>{{ h.address }}</td>
+        <td>{{ h.total_beds }}</td>
+        <td>{{ h.occupied_beds }}</td>
+        <td>{{ h.available_beds }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5">No hay hospitales cargados.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div></div>
+{% endblock %}
