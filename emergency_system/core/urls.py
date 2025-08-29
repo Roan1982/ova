@@ -2,7 +2,8 @@ from django.urls import path
 from .views import (
     home, create_emergency, emergency_list,
     process_emergency, emergency_detail, resolve_emergency,
-    agentes_list, unidades_por_fuerza, hospitales_list, facilities_list, dashboard
+    agentes_list, unidades_por_fuerza, hospitales_list, facilities_list, dashboard,
+    ai_status_view
 )
 
 urlpatterns = [
@@ -18,4 +19,5 @@ urlpatterns = [
     path('hospitales/', hospitales_list, name='hospitales_list'),
     path('instalaciones/', facilities_list, name='facilities_list'),
     path('dashboard/', dashboard, name='dashboard'),
+    path('ai-status/', ai_status_view, name='ai_status'),
 ]

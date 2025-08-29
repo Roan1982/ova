@@ -17,6 +17,12 @@ pre { background: #0b1220; padding: 10px; border-radius: 6px; white-space: pre-w
     {% endif %}
 
     <h3>Informe de Proceso</h3>
+    {% if emergency.ai_response %}
+        <div style="background: linear-gradient(135deg, #1e40af, #3730a3); padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #60a5fa;">
+            <h4 style="margin: 0 0 8px 0; color: #93c5fd; font-size: 14px;">🤖 ANÁLISIS DE IA</h4>
+            <p style="margin: 0; color: #e2e8f0; line-height: 1.4;">{{ emergency.ai_response }}</p>
+        </div>
+    {% endif %}
     <pre>{{ emergency.resolution_notes }}</pre>
 
     {% if emergency.dispatches.all %}

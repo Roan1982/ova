@@ -62,6 +62,7 @@ class Emergency(models.Model):
     reported_at = models.DateTimeField(default=timezone.now, verbose_name='Reportado en')
     resolved_at = models.DateTimeField(null=True, blank=True, verbose_name='Resuelto en')
     resolution_notes = models.TextField(blank=True, verbose_name='Notas de Resolución')
+    ai_response = models.TextField(blank=True, verbose_name='Respuesta IA')
 
     def __str__(self):
         return f"Emergencia {self.id} - {self.code}"

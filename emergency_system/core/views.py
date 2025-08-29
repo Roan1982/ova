@@ -74,6 +74,12 @@ def process_emergency(request, pk):
         emergency.code = ia['codigo']
         emergency.priority = 10 if ia['codigo'] == 'rojo' else 5 if ia['codigo'] == 'amarillo' else 1
         emergency.onda_verde = (ia['codigo'] == 'rojo')
+        
+        # Guardar respuesta de la IA
+        respuesta_ia = ia.get('respuesta_ia', 'Clasificación completada por sistema de IA.')
+        fuente_ia = ia.get('fuente', 'desconocida')
+        emergency.ai_response = f"[Sistema {fuente_ia.upper()}] {respuesta_ia}"
+        
         # Sugerir fuerza según IA
         tipo = ia.get('tipo')
         if tipo == 'bomberos':
@@ -84,12 +90,13 @@ def process_emergency(request, pk):
         elif tipo == 'policial':
             pass
         # guardamos cambios mínimos
-        emergency.save(update_fields=['code', 'priority', 'onda_verde'])
+        emergency.save(update_fields=['code', 'priority', 'onda_verde', 'ai_response'])
     else:
         # Fallback: usar clasificación local preexistente
         if not emergency.code:
             emergency.code = emergency.classify_code()
-            emergency.save(update_fields=['code', 'priority'])
+            emergency.ai_response = "Sistema de IA no disponible. Clasificación realizada por reglas básicas."
+            emergency.save(update_fields=['code', 'priority', 'ai_response'])
 
     # 2) Asignación de intervención/vehículo
     assigned_by_ia = False
@@ -354,6 +361,39 @@ def facilities_list(request):
         'kind': kind,
         'stats': stats
     })
+
+
+def ai_status_view(request):
+    """Vista para mostrar el estado del sistema de IA"""
+    from django.conf import settings
+    from .llm import get_ai_status, classify_with_ollama
+    
+    status = get_ai_status()
+    
+    # Test de clasificación
+    test_description = "Accidente de tránsito con heridos en Av. Corrientes"
+    test_result = None
+    test_error = None
+    
+    try:
+        test_result = classify_with_ollama(test_description)
+    except Exception as e:
+        test_error = str(e)
+    
+    context = {
+        'status': status,
+        'test_description': test_description,
+        'test_result': test_result,
+        'test_error': test_error,
+        'settings_config': {
+            'OLLAMA_BASE_URL': getattr(settings, 'OLLAMA_BASE_URL', 'No configurado'),
+            'OLLAMA_MODEL': getattr(settings, 'OLLAMA_MODEL', 'No configurado'),
+            'OLLAMA_TIMEOUT': getattr(settings, 'OLLAMA_TIMEOUT', 'No configurado'),
+            'OLLAMA_MAX_RETRIES': getattr(settings, 'OLLAMA_MAX_RETRIES', 'No configurado'),
+        }
+    }
+    
+    return render(request, 'core/ai_status.html', context)
 
 
 # Dashboard

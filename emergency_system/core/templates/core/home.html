@@ -1,82 +1,355 @@
 {% extends 'core/base.html' %}
-{% block title %}Inicio{% endblock %}
+{% block title %}Centro de Control CABA{% endblock %}
 {% block extra_head %}<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>{% endblock %}
 {% block extra_styles %}
-#map { height: 520px; border-radius: 12px; }
-.hero { display: grid; grid-template-columns: 1.2fr .8fr; gap: 16px; align-items: start; }
-.legend { display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size: 13px; color: var(--muted); }
-.dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:6px; }
-.dot.rojo { background: var(--danger); }
-.dot.amarillo { background: var(--warning); }
-.dot.verde { background: var(--success); }
+#map { height: 600px; border-radius: 12px; border: 2px solid #1f2937; }
+.hero { display: grid; grid-template-columns: 1.4fr .6fr; gap: 16px; align-items: start; }
+.legend { display:flex; gap:15px; align-items:center; flex-wrap:wrap; font-size: 12px; color: var(--muted); margin-top: 12px; }
+.legend-item { display: flex; align-items: center; gap: 6px; background: #0f172a; padding: 4px 8px; border-radius: 4px; }
+.dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+.dot.rojo { background: #dc2626; }
+.dot.amarillo { background: #f59e0b; }
+.dot.verde { background: #22c55e; }
+.dot.agente-policia { background: #3b82f6; }
+.dot.agente-bomberos { background: #dc2626; }
+.dot.agente-same { background: #10b981; }
+.dot.agente-transito { background: #f59e0b; }
+.dot.instalacion { background: #8b5cf6; }
+.map-controls { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.map-btn { padding: 6px 10px; font-size: 11px; border: 1px solid #374151; background: #111827; color: #d1d5db; border-radius: 4px; cursor: pointer; }
+.map-btn:hover { background: #1f2937; }
+.map-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+/* Ticker de actividades */
+.activity-ticker { background: linear-gradient(135deg, #1e293b, #334155); border-radius: 12px; margin-bottom: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+.ticker-header { background: rgba(59,130,246,0.1); padding: 8px 16px; font-size: 12px; font-weight: 600; color: #60a5fa; border-bottom: 1px solid rgba(59,130,246,0.2); }
+.ticker-content { display: flex; animation: scroll 30s linear infinite; padding: 8px 0; }
+.ticker-item { color: #e2e8f0; font-size: 13px; white-space: nowrap; padding: 0 24px; border-right: 1px solid rgba(255,255,255,0.1); }
+@keyframes scroll { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
+.stats-mini { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; }
+.stat-mini { background: #0f172a; padding: 8px; border-radius: 6px; text-align: center; font-size: 11px; }
+.stat-mini .value { font-size: 16px; font-weight: bold; color: var(--primary); }
+.caba-info { background: linear-gradient(135deg, #1e40af, #7c3aed); padding: 10px; border-radius: 8px; color: white; margin-bottom: 12px; font-size: 12px; }
+.emergency-ticker { background: #0f172a; border: 1px solid #1f2937; border-radius: 6px; padding: 8px; margin-top: 10px; }
+.ticker-title { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.ticker-item { font-size: 10px; padding: 4px 0; border-bottom: 1px solid #1f2937; }
+.ticker-item:last-child { border-bottom: none; }
 @media (max-width: 900px){ .hero { grid-template-columns: 1fr; } }
 {% endblock %}
 {% block content %}
 <div class="hero">
   <div class="card" style="overflow:hidden;">
-    <h2>Mapa de Emergencias</h2>
+    <h2>🗺️ Mapa Operativo CABA</h2>
     <div class="body">
-      <div id="map"></div>
-      <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:13px; color: var(--muted);">
-        <span><span class="dot rojo"></span>Rojo</span>
-        <span><span class="dot amarillo"></span>Amarillo</span>
-        <span><span class="dot verde"></span>Verde</span>
-        <span style="margin-left:auto; color:#60a5fa;">Tráfico en tiempo real activo</span>
-        <button id="btn-redistribuir" class="btn" type="button">Redistribuir (simulado)</button>
+      <!-- Controles del mapa -->
+      <div class="map-controls">
+        <button class="map-btn active" data-layer="emergencias">🚨 Emergencias</button>
+        <button class="map-btn active" data-layer="agentes">👮 Agentes</button>
+        <button class="map-btn active" data-layer="instalaciones">🏢 Instalaciones</button>
+        <button class="map-btn active" data-layer="hospitales">🏥 Hospitales</button>
+        <button class="map-btn" data-layer="comunas">📍 Comunas</button>
+        <button class="map-btn" id="btn-centrar">🎯 Centrar</button>
+        <button class="map-btn" id="btn-redistribuir">🔄 Redistribuir</button>
+      </div>
+      
+            </div>
+    </div>
+
+    <!-- Ticker de actividades -->
+    <div class="activity-ticker">
+      <div class="ticker-header">📈 ACTIVIDAD EN TIEMPO REAL</div>
+      <div id="ticker-content" class="ticker-content">
+        <div class="ticker-item">🚨 Sistema iniciando...</div>
+      </div>
+    </div>
+
+    <!-- Mapa interactivo -->
+    <div id="map"></div>
+  </div>
+      
+      <!-- Leyenda mejorada -->
+      <div class="legend">
+        <div class="legend-item">
+          <span class="dot rojo"></span>
+          <span>Emergencias Críticas</span>
+        </div>
+        <div class="legend-item">
+          <span class="dot amarillo"></span>
+          <span>Emergencias Urgentes</span>
+        </div>
+        <div class="legend-item">
+          <span class="dot verde"></span>
+          <span>Emergencias Leves</span>
+        </div>
+        <div class="legend-item">
+          <span class="dot agente-policia"></span>
+          <span>Policía</span>
+        </div>
+        <div class="legend-item">
+          <span class="dot agente-bomberos"></span>
+          <span>Bomberos</span>
+        </div>
+        <div class="legend-item">
+          <span class="dot agente-same"></span>
+          <span>SAME</span>
+        </div>
+        <div class="legend-item">
+          <span class="dot agente-transito"></span>
+          <span>Tránsito</span>
+        </div>
+        <div class="legend-item">
+          <span class="dot instalacion"></span>
+          <span>Instalaciones</span>
+        </div>
+      </div>
+      
+      <!-- Ticker de emergencias recientes -->
+      <div class="emergency-ticker">
+        <div class="ticker-title">📢 Últimas Actividades</div>
+        <div id="ticker-content">
+          <!-- Se llena dinámicamente -->
+        </div>
       </div>
     </div>
   </div>
+  
   <div class="card">
-    <h2>Acciones Rápidas</h2>
+    <!-- Información de CABA -->
+    <div class="caba-info">
+      <strong>🏛️ Ciudad Autónoma de Buenos Aires</strong><br>
+      <small>Sistema Unificado de Emergencias</small><br>
+      <small>Superficie: 203 km² | 15 Comunas</small>
+    </div>
+    
+    <!-- Estadísticas rápidas -->
+    <div class="stats-mini">
+      <div class="stat-mini">
+        <div class="value">{{ emergencies.count }}</div>
+        <div>Emergencias Activas</div>
+      </div>
+      <div class="stat-mini">
+        <div class="value">{{ agents.count }}</div>
+        <div>Agentes en Campo</div>
+      </div>
+      <div class="stat-mini">
+        <div class="value">{{ facilities.count }}</div>
+        <div>Instalaciones</div>
+      </div>
+      <div class="stat-mini">
+        <div class="value">15</div>
+        <div>Comunas</div>
+      </div>
+    </div>
+    
+    <h3>🚀 Acciones Rápidas</h3>
     <div class="body" style="display:grid; gap:12px;">
-      <a class="btn" href="{% url 'create_emergency' %}">Reportar nueva emergencia</a>
-      <a class="btn" href="{% url 'emergency_list' %}">Ver lista de emergencias</a>
-      <a class="btn" href="{% url 'dashboard' %}">Abrir dashboard</a>
-      <a class="btn" href="{% url 'agentes_list' %}">Ver agentes</a>
-      <a class="btn" href="{% url 'unidades_por_fuerza' %}">Ver unidades</a>
-      <a class="btn" href="{% url 'hospitales_list' %}">Ver hospitales</a>
+      <a class="btn" href="{% url 'create_emergency' %}" style="background: var(--danger); color: white;">
+        🚨 Reportar Emergencia
+      </a>
+      <a class="btn" href="{% url 'dashboard' %}">
+        📊 Dashboard Central
+      </a>
+      <a class="btn" href="{% url 'emergency_list' %}">
+        📋 Lista de Emergencias
+      </a>
+      <a class="btn" href="{% url 'agentes_list' %}">
+        👮 Personal en Servicio
+      </a>
+      <a class="btn" href="{% url 'unidades_por_fuerza' %}">
+        🚗 Flota de Vehículos
+      </a>
+      <a class="btn" href="{% url 'facilities_list' %}">
+        🏢 Red de Instalaciones
+      </a>
+      <a class="btn" href="{% url 'hospitales_list' %}">
+        🏥 Red Hospitalaria
+      </a>
     </div>
   </div>
 </div>
 
 {% load l10n %}
 <script>
-  var map = L.map('map').setView([-34.6037, -58.3816], 12);  // Centrado en CABA
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+  // Configuración específica de CABA
+  const CABA_BOUNDS = {
+    center: [-34.6118, -58.3960],  // Centro más preciso de CABA
+    bounds: [[-34.7347, -58.5314], [-34.5265, -58.3309]], // Límites precisos de CABA
+    zoom: 12
+  };
 
-  // Capa de tráfico en tiempo real (TomTom). Reemplaza YOUR_TOMTOM_API_KEY con tu clave.
-  var trafficLayer = L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative/{z}/{x}/{y}.png?key=YOUR_TOMTOM_API_KEY', {
-      attribution: '&copy; TomTom',
-      opacity: 0.7
+  // Coordenadas de las 15 comunas de CABA
+  const COMUNAS_CABA = [
+    {id: 1, name: "Comuna 1 - Retiro, San Nicolás, Puerto Madero, San Telmo, Montserrat, Constitución", center: [-34.6092, -58.3732]},
+    {id: 2, name: "Comuna 2 - Recoleta", center: [-34.5938, -58.3963]},
+    {id: 3, name: "Comuna 3 - Balvanera, San Cristóbal", center: [-34.6158, -58.4085]},
+    {id: 4, name: "Comuna 4 - La Boca, Barracas, Parque Patricios, Nueva Pompeya", center: [-34.6346, -58.3635]},
+    {id: 5, name: "Comuna 5 - Boedo, Almagro", center: [-34.6158, -58.4241]},
+    {id: 6, name: "Comuna 6 - Caballito", center: [-34.6158, -58.4396]},
+    {id: 7, name: "Comuna 7 - Flores, Parque Chacabuco", center: [-34.6304, -58.4634]},
+    {id: 8, name: "Comuna 8 - Villa Soldati, Villa Riachuelo, Villa Lugano", center: [-34.6729, -58.4634]},
+    {id: 9, name: "Comuna 9 - Liniers, Mataderos, Parque Avellaneda", center: [-34.6440, -58.5088]},
+    {id: 10, name: "Comuna 10 - Villa Real, Monte Castro, Versalles, Floresta, Vélez Sársfield, Villa Luro", center: [-34.6158, -58.4789]},
+    {id: 11, name: "Comuna 11 - Villa General Mitre, Villa Devoto, Villa del Parque, Villa Santa Rita", center: [-34.6011, -58.4789]},
+    {id: 12, name: "Comuna 12 - Coghlan, Saavedra, Villa Urquiza, Villa Pueyrredón", center: [-34.5633, -58.4789]},
+    {id: 13, name: "Comuna 13 - Núñez, Belgrano, Colegiales", center: [-34.5633, -58.4456]},
+    {id: 14, name: "Comuna 14 - Palermo", center: [-34.5889, -58.4199]},
+    {id: 15, name: "Comuna 15 - Chacarita, Villa Crespo, La Paternal, Villa Ortúzar, Agronomía", center: [-34.5889, -58.4553]}
+  ];
+
+  // Inicializar mapa con vista de CABA
+  var map = L.map('map', {
+    center: CABA_BOUNDS.center,
+    zoom: CABA_BOUNDS.zoom,
+    maxBounds: CABA_BOUNDS.bounds,
+    maxBoundsViscosity: 1.0
+  });
+
+  // Capa base mejorada
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
+    maxZoom: 18,
+    minZoom: 10
   }).addTo(map);
 
-  // Marcadores de emergencias
+  // Grupos de capas para control de visibilidad
+  const layerGroups = {
+    emergencias: L.layerGroup().addTo(map),
+    agentes: L.layerGroup().addTo(map),
+    instalaciones: L.layerGroup().addTo(map),
+    hospitales: L.layerGroup().addTo(map),
+    comunas: L.layerGroup()
+  };
+
+  // Función para obtener colores por fuerza
+  function getForceColor(force) {
+    const colors = {
+      'Policía': '#3b82f6',
+      'Bomberos': '#dc2626', 
+      'SAME': '#10b981',
+      'Tránsito': '#f59e0b'
+    };
+    return colors[force] || '#6b7280';
+  }
+
+  // Función para obtener colores por tipo de emergencia
+  function getEmergencyColor(code) {
+    const colors = {
+      'rojo': '#dc2626',
+      'amarillo': '#f59e0b',
+      'verde': '#22c55e'
+    };
+    return colors[code] || '#6b7280';
+  }
+
+  // Agregar marcadores de emergencias
   {% for emergency in emergencies %}
     {% if emergency.location_lat and emergency.location_lon %}
-      var popup = `
-        <strong>{{ emergency.code|upper }}</strong> - {{ emergency.description|escapejs }}<br/>
-        {{ emergency.address|default:""|escapejs }}
-        {% if emergency.onda_verde %}<br/><span style="color:#f87171;">Onda Verde ACTIVADA</span>{% endif %}
+      var emergencyMarker = L.circleMarker([{{ emergency.location_lat|unlocalize }}, {{ emergency.location_lon|unlocalize }}], {
+        radius: 8,
+        color: getEmergencyColor('{{ emergency.code }}'),
+        fillColor: getEmergencyColor('{{ emergency.code }}'),
+        fillOpacity: 0.8,
+        weight: 2
+      }).addTo(layerGroups.emergencias);
+      
+      var emergencyPopup = `
+        <div style="min-width: 200px;">
+          <h4 style="margin: 0 0 8px 0; color: ${getEmergencyColor('{{ emergency.code }}')};">
+            🚨 EMERGENCIA {{ emergency.code|upper }}
+          </h4>
+          <p style="margin: 4px 0;"><strong>Descripción:</strong> {{ emergency.description|escapejs }}</p>
+          <p style="margin: 4px 0;"><strong>Dirección:</strong> {{ emergency.address|default:"Sin dirección"|escapejs }}</p>
+          <p style="margin: 4px 0;"><strong>Estado:</strong> {{ emergency.status|title }}</p>
+          <p style="margin: 4px 0;"><strong>Reportado:</strong> {{ emergency.reported_at|date:"d/m/Y H:i" }}</p>
+          {% if emergency.assigned_force %}
+            <p style="margin: 4px 0;"><strong>Fuerza:</strong> {{ emergency.assigned_force.name }}</p>
+          {% endif %}
+          {% if emergency.onda_verde %}
+            <p style="color: #dc2626; font-weight: bold;">🚨 ONDA VERDE ACTIVADA</p>
+          {% endif %}
+        </div>
       `;
-      L.marker([{{ emergency.location_lat|unlocalize }}, {{ emergency.location_lon|unlocalize }}]).addTo(map)
-        .bindPopup(popup);
+      emergencyMarker.bindPopup(emergencyPopup);
     {% endif %}
   {% endfor %}
 
-  // Instalaciones (comisarías, cuarteles, tránsito)
+  // Agregar marcadores de instalaciones
   {% for f in facilities %}
     {% if f.lat and f.lon %}
-      var iconColor = '#60a5fa'; // comisarías
-      {% if f.kind == 'cuartel' %} iconColor = '#f87171'; {% endif %}
-      {% if f.kind == 'base_transito' %} iconColor = '#22c55e'; {% endif %}
+      var facilityColor = '#8b5cf6';
+      var facilityIcon = '🏢';
+      {% if f.kind == 'cuartel' %}
+        facilityColor = '#dc2626';
+        facilityIcon = '🚒';
+      {% elif f.kind == 'comisaria' %}
+        facilityColor = '#3b82f6';
+        facilityIcon = '🚔';
+      {% elif f.kind == 'base_transito' %}
+        facilityColor = '#f59e0b';
+        facilityIcon = '🚦';
+      {% endif %}
+      
       var facilityMarker = L.circleMarker([{{ f.lat|unlocalize }}, {{ f.lon|unlocalize }}], {
-        radius: 6, color: iconColor, fillColor: iconColor, fillOpacity: 0.9
-      }).addTo(map);
-      facilityMarker.bindPopup(`{{ f.name|escapejs }}<br/>{{ f.get_kind_display|escapejs }}<br/>{{ f.address|default:""|escapejs }}`);
+        radius: 6,
+        color: facilityColor,
+        fillColor: facilityColor,
+        fillOpacity: 0.9,
+        weight: 2
+      }).addTo(layerGroups.instalaciones);
+      
+      facilityMarker.bindPopup(`
+        <div style="min-width: 180px;">
+          <h4 style="margin: 0 0 8px 0; color: ${facilityColor};">
+            ${facilityIcon} {{ f.get_kind_display }}
+          </h4>
+          <p style="margin: 4px 0;"><strong>{{ f.name|escapejs }}</strong></p>
+          <p style="margin: 4px 0;">{{ f.address|default:""|escapejs }}</p>
+          {% if f.force %}
+            <p style="margin: 4px 0;"><strong>Fuerza:</strong> {{ f.force.name }}</p>
+          {% endif %}
+        </div>
+      `);
     {% endif %}
   {% endfor %}
 
-  // Agentes en campo (con movimiento simulado)
+  // Agregar marcadores de hospitales con información de camas
+  {% for h in hospitals %}
+    {% if h.lat and h.lon %}
+      var hospitalOccupancy = Math.round(({{ h.occupied_beds }} / {{ h.total_beds }}) * 100);
+      var hospitalColor = hospitalOccupancy > 80 ? '#dc2626' : hospitalOccupancy > 60 ? '#f59e0b' : '#22c55e';
+      
+      var hospitalMarker = L.circleMarker([{{ h.lat|unlocalize }}, {{ h.lon|unlocalize }}], {
+        radius: 8,
+        color: hospitalColor,
+        fillColor: hospitalColor,
+        fillOpacity: 0.8,
+        weight: 2
+      }).addTo(layerGroups.hospitales);
+      
+      hospitalMarker.bindPopup(`
+        <div style="min-width: 220px;">
+          <h4 style="margin: 0 0 8px 0; color: ${hospitalColor};">
+            🏥 HOSPITAL
+          </h4>
+          <p style="margin: 4px 0;"><strong>{{ h.name|escapejs }}</strong></p>
+          <p style="margin: 4px 0;">{{ h.address|escapejs }}</p>
+          <div style="margin: 8px 0; padding: 6px; background: #f3f4f6; border-radius: 4px;">
+            <p style="margin: 2px 0; font-size: 12px;">
+              <strong>Capacidad:</strong> {{ h.total_beds }} camas
+            </p>
+            <p style="margin: 2px 0; font-size: 12px;">
+              <strong>Ocupadas:</strong> {{ h.occupied_beds }} (${hospitalOccupancy}%)
+            </p>
+            <p style="margin: 2px 0; font-size: 12px;">
+              <strong>Disponibles:</strong> {{ h.available_beds }}
+            </p>
+          </div>
+        </div>
+      `);
+    {% endif %}
+  {% endfor %}
+
+  // Datos de agentes para animación
   const agentMarkers = [];
   const agentData = [
     {% for a in agents %}
@@ -94,61 +367,150 @@
     {% endfor %}
   ];
 
-  function colorForForce(f){
-    if (f === 'Policía') return '#60a5fa';
-    if (f === 'Tránsito') return '#22c55e';
-    if (f === 'SAME') return '#e5e7eb';
-    if (f === 'Bomberos') return '#f87171';
-    return '#93c5fd';
-  }
-
-  function addOrUpdateAgents(){
-    // Si todavía no hay marcadores, crearlos con una pequeña dispersión inicial
-    if (agentMarkers.length === 0){
+  // Función para agregar/actualizar agentes
+  function updateAgents() {
+    if (agentMarkers.length === 0) {
+      // Crear marcadores iniciales
       agentData.forEach(a => {
-        const acolor = colorForForce(a.force);
-        // dispersión inicial adicional de ~400m
-        const jitter = 0.004 * (Math.random() - 0.5);
-        const jitter2 = 0.004 * (Math.random() - 0.5);
-        a.lat = a.lat + jitter;
-        a.lon = a.lon + jitter2;
-        const m = L.circleMarker([a.lat, a.lon], { radius: 4, color: acolor, fillColor: acolor, fillOpacity: 0.9 });
-        m.bindPopup(`${a.name}<br/>${a.force} - ${a.role}<br/>Estado: ${a.status}`);
-        m.addTo(map);
-        agentMarkers.push(m);
+        const agentColor = getForceColor(a.force);
+        const marker = L.circleMarker([a.lat, a.lon], {
+          radius: 4,
+          color: agentColor,
+          fillColor: agentColor,
+          fillOpacity: 0.9,
+          weight: 1
+        });
+        
+        marker.bindPopup(`
+          <div style="min-width: 160px;">
+            <h4 style="margin: 0 0 8px 0; color: ${agentColor};">
+              👮 ${a.force}
+            </h4>
+            <p style="margin: 4px 0;"><strong>${a.name}</strong></p>
+            <p style="margin: 4px 0;">${a.role}</p>
+            <p style="margin: 4px 0;"><strong>Estado:</strong> ${a.status}</p>
+          </div>
+        `);
+        
+        marker.addTo(layerGroups.agentes);
+        agentMarkers.push(marker);
       });
     } else {
-      // movimiento simulado: pequeño paso aleatorio con límites globales de CABA (no dependientes del zoom)
-      const CABA = { minLat: -34.72, maxLat: -34.52, minLon: -58.55, maxLon: -58.30 };
+      // Movimiento simulado dentro de CABA
       agentData.forEach((a, idx) => {
-        // paso base ~30-60m
-        const step = (Math.random()*0.001 - 0.0005);
-        const step2 = (Math.random()*0.001 - 0.0005);
+        const step = (Math.random() * 0.002 - 0.001); // ~100m steps
+        const step2 = (Math.random() * 0.002 - 0.001);
+        
         a.lat += step;
         a.lon += step2;
-        // Mantener dentro de CABA (clamp con ligero ruido para no quedar en el borde exacto)
-        if (a.lat < CABA.minLat) a.lat = CABA.minLat + Math.random()*0.002;
-        if (a.lat > CABA.maxLat) a.lat = CABA.maxLat - Math.random()*0.002;
-        if (a.lon < CABA.minLon) a.lon = CABA.minLon + Math.random()*0.002;
-        if (a.lon > CABA.maxLon) a.lon = CABA.maxLon - Math.random()*0.002;
+        
+        // Mantener dentro de los límites de CABA
+        if (a.lat < CABA_BOUNDS.bounds[0][0]) a.lat = CABA_BOUNDS.bounds[0][0] + Math.random() * 0.001;
+        if (a.lat > CABA_BOUNDS.bounds[1][0]) a.lat = CABA_BOUNDS.bounds[1][0] - Math.random() * 0.001;
+        if (a.lon < CABA_BOUNDS.bounds[0][1]) a.lon = CABA_BOUNDS.bounds[0][1] + Math.random() * 0.001;
+        if (a.lon > CABA_BOUNDS.bounds[1][1]) a.lon = CABA_BOUNDS.bounds[1][1] - Math.random() * 0.001;
+        
         agentMarkers[idx].setLatLng([a.lat, a.lon]);
       });
     }
   }
 
-  addOrUpdateAgents();
-  // Actualizar cada 5s
-  setInterval(addOrUpdateAgents, 5000);
+  // Agregar marcadores de comunas
+  function addComunas() {
+    COMUNAS_CABA.forEach(comuna => {
+      const marker = L.circleMarker(comuna.center, {
+        radius: 12,
+        color: '#7c3aed',
+        fillColor: '#7c3aed',
+        fillOpacity: 0.3,
+        weight: 2
+      }).addTo(layerGroups.comunas);
+      
+      marker.bindPopup(`
+        <div style="min-width: 200px;">
+          <h4 style="margin: 0 0 8px 0; color: #7c3aed;">
+            📍 ${comuna.name}
+          </h4>
+        </div>
+      `);
+    });
+  }
 
-  // Redistribución (simulada) para evitar agrupamientos
-  document.getElementById('btn-redistribuir').addEventListener('click', ()=>{
-    // Redistribuir dentro de los límites globales de CABA, no del viewport
-    const CABA = { minLat: -34.72, maxLat: -34.52, minLon: -58.55, maxLon: -58.30 };
+  // Controles de capas
+  document.querySelectorAll('.map-btn[data-layer]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const layer = btn.dataset.layer;
+      
+      if (layer === 'comunas') {
+        if (map.hasLayer(layerGroups.comunas)) {
+          map.removeLayer(layerGroups.comunas);
+          btn.classList.remove('active');
+        } else {
+          addComunas();
+          map.addLayer(layerGroups.comunas);
+          btn.classList.add('active');
+        }
+        return;
+      }
+      
+      if (map.hasLayer(layerGroups[layer])) {
+        map.removeLayer(layerGroups[layer]);
+        btn.classList.remove('active');
+      } else {
+        map.addLayer(layerGroups[layer]);
+        btn.classList.add('active');
+      }
+    });
+  });
+
+  // Botón centrar
+  document.getElementById('btn-centrar').addEventListener('click', () => {
+    map.setView(CABA_BOUNDS.center, CABA_BOUNDS.zoom);
+  });
+
+  // Botón redistribuir agentes
+  document.getElementById('btn-redistribuir').addEventListener('click', () => {
     agentData.forEach((a, idx) => {
-      a.lat = CABA.minLat + Math.random() * (CABA.maxLat - CABA.minLat);
-      a.lon = CABA.minLon + Math.random() * (CABA.maxLon - CABA.minLon);
+      // Distribuir aleatoriamente dentro de CABA
+      const latRange = CABA_BOUNDS.bounds[1][0] - CABA_BOUNDS.bounds[0][0];
+      const lonRange = CABA_BOUNDS.bounds[1][1] - CABA_BOUNDS.bounds[0][1];
+      
+      a.lat = CABA_BOUNDS.bounds[0][0] + Math.random() * latRange;
+      a.lon = CABA_BOUNDS.bounds[0][1] + Math.random() * lonRange;
+      
       agentMarkers[idx].setLatLng([a.lat, a.lon]);
     });
   });
+
+  // Ticker de actividades
+  function updateTicker() {
+    const activities = [
+      "🚨 Nueva emergencia reportada en Comuna 1",
+      "🚔 Patrulla despachada a Balvanera", 
+      "🚑 Ambulancia en ruta a hospital Fernández",
+      "🚒 Bomberos controlaron incendio en Palermo",
+      "🚦 Tránsito reporta congestión en 9 de Julio",
+      "✅ Emergencia resuelta en San Telmo"
+    ];
+    
+    const ticker = document.getElementById('ticker-content');
+    ticker.innerHTML = '';
+    
+    for (let i = 0; i < 3; i++) {
+      const activity = activities[Math.floor(Math.random() * activities.length)];
+      const div = document.createElement('div');
+      div.className = 'ticker-item';
+      div.textContent = activity;
+      ticker.appendChild(div);
+    }
+  }
+
+  // Inicialización
+  updateAgents();
+  updateTicker();
+  
+  // Actualizaciones periódicas
+  setInterval(updateAgents, 5000); // Mover agentes cada 5s
+  setInterval(updateTicker, 10000); // Actualizar ticker cada 10s
 </script>
 {% endblock %}
