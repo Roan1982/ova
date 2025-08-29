@@ -22,64 +22,160 @@
 
 /* Ticker de actividades */
 .activity-ticker { background: linear-gradient(135deg, #1e293b, #334155); border-radius: 12px; margin-bottom: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-.ticker-header { background: rgba(59,130,246,0.1); padding: 8px 16px; font-size: 12px; font-weight: 600; color: #60a5fa; border-bottom: 1px solid rgba(59,130,246,0.2); }
-.ticker-content { display: flex; animation: scroll 30s linear infinite; padding: 8px 0; }
-.ticker-item { color: #e2e8f0; font-size: 13px; white-space: nowrap; padding: 0 24px; border-right: 1px solid rgba(255,255,255,0.1); }
+.ticker-header { background: rgba(59,130,246,0.1); padding: 12px 16px; font-size: 14px; font-weight: 700; color: #60a5fa; border-bottom: 1px solid rgba(59,130,246,0.2); }
+.ticker-content { display: flex; animation: scroll 25s linear infinite; padding: 12px 0; }
+.ticker-item { color: #e2e8f0; font-size: 15px; white-space: nowrap; padding: 0 32px; border-right: 1px solid rgba(255,255,255,0.1); font-weight: 500; }
 @keyframes scroll { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
-.stats-mini { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; }
-.stat-mini { background: #0f172a; padding: 8px; border-radius: 6px; text-align: center; font-size: 11px; }
-.stat-mini .value { font-size: 16px; font-weight: bold; color: var(--primary); }
-.caba-info { background: linear-gradient(135deg, #1e40af, #7c3aed); padding: 10px; border-radius: 8px; color: white; margin-bottom: 12px; font-size: 12px; }
-.emergency-ticker { background: #0f172a; border: 1px solid #1f2937; border-radius: 6px; padding: 8px; margin-top: 10px; }
-.ticker-title { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.stats-mini { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 15px; }
+.stat-mini { background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); padding: 10px; border-radius: 8px; text-align: center; font-size: 12px; }
+.stat-mini .value { font-size: 18px; font-weight: bold; color: #60a5fa; display: block; margin-bottom: 4px; }
+.emergency-ticker { background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 8px; padding: 12px; margin-top: 15px; }
+.ticker-title { font-size: 12px; color: #10b981; margin-bottom: 8px; font-weight: 600; }
 .ticker-item { font-size: 10px; padding: 4px 0; border-bottom: 1px solid #1f2937; }
 .ticker-item:last-child { border-bottom: none; }
-@media (max-width: 900px){ .hero { grid-template-columns: 1fr; } }
+
+/* Estilos para el sistema de rutas */
+.emergency-pulse {
+  animation: emergency-pulse 2s ease-in-out infinite;
+}
+
+.emergency-selected {
+  animation: emergency-selected 1s ease-in-out infinite;
+  filter: drop-shadow(0 0 10px #60a5fa);
+}
+
+@keyframes emergency-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+}
+
+@keyframes emergency-selected {
+  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.8); }
+  50% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.3); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+/* Rutas en el mapa */
+.route-line {
+  stroke-width: 4;
+  stroke-dasharray: 10,10;
+  animation: route-dash 2s linear infinite;
+}
+
+.tracking-line {
+  stroke-width: 6;
+  stroke-dasharray: 5,15;
+  animation: tracking-dash 1.5s linear infinite;
+}
+
+@keyframes route-dash {
+  to { stroke-dashoffset: -20; }
+}
+
+@keyframes tracking-dash {
+  to { stroke-dashoffset: -20; }
+}
+
+/* Botones de ruta en popups */
+.route-btn {
+  display: inline-block;
+  padding: 4px 8px;
+  margin: 2px;
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+
+.route-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* Semáforos y onda verde */
+.traffic-light-green {
+  animation: traffic-pulse 2s ease-in-out infinite;
+}
+
+.traffic-light-red {
+  animation: traffic-red-pulse 1s ease-in-out infinite;
+}
+
+@keyframes traffic-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.8); }
+  70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+@keyframes traffic-red-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.8); }
+  50% { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0.3); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+}
+
+@media (max-width: 1200px) { 
+  .hero { grid-template-columns: 1fr !important; } 
+  .card { margin-bottom: 20px; }
+}
+</style>
 {% endblock %}
+
 {% block content %}
-<div class="hero">
-  <div class="card" style="overflow:hidden;">
-    <h2>🗺️ Mapa Operativo CABA</h2>
-    <div class="body">
-      <!-- Controles del mapa -->
-      <div class="map-controls">
-        <button class="map-btn active" data-layer="emergencias">🚨 Emergencias</button>
-        <button class="map-btn active" data-layer="agentes">👮 Agentes</button>
-        <button class="map-btn active" data-layer="instalaciones">🏢 Instalaciones</button>
-        <button class="map-btn active" data-layer="hospitales">🏥 Hospitales</button>
-        <button class="map-btn" data-layer="comunas">📍 Comunas</button>
-        <button class="map-btn" id="btn-centrar">🎯 Centrar</button>
-        <button class="map-btn" id="btn-redistribuir">🔄 Redistribuir</button>
-      </div>
-      
-            </div>
-    </div>
-
-    <!-- Ticker de actividades -->
-    <div class="activity-ticker">
-      <div class="ticker-header">📈 ACTIVIDAD EN TIEMPO REAL</div>
-      <div id="ticker-content" class="ticker-content">
-        <div class="ticker-item">🚨 Sistema iniciando...</div>
+<div style="display: grid; grid-template-columns: 1fr 350px; gap: 20px; height: calc(100vh - 120px);">
+  <!-- Mapa principal -->
+  <div class="card" style="overflow: hidden;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+      <h2 style="margin: 0;">🗺️ Mapa Operativo CABA</h2>
+      <!-- Controles del mapa compactos -->
+      <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+        <button class="map-btn active" data-layer="emergencias" style="font-size: 11px; padding: 4px 8px;">🚨</button>
+        <button class="map-btn active" data-layer="agentes" style="font-size: 11px; padding: 4px 8px;">👮</button>
+        <button class="map-btn active" data-layer="instalaciones" style="font-size: 11px; padding: 4px 8px;">🏢</button>
+        <button class="map-btn active" data-layer="hospitales" style="font-size: 11px; padding: 4px 8px;">🏥</button>
+        <button class="map-btn active" data-layer="rutas" style="font-size: 11px; padding: 4px 8px;">🛣️</button>
+        <button class="map-btn" data-layer="comunas" style="font-size: 11px; padding: 4px 8px;">📍</button>
+        <button class="map-btn" id="btn-centrar" style="font-size: 11px; padding: 4px 8px;">🎯</button>
+        <button class="map-btn" id="btn-limpiar-rutas" style="font-size: 11px; padding: 4px 8px;">🧹</button>
+        <button class="map-btn" id="btn-redistribuir" style="font-size: 11px; padding: 4px 8px;">🔄</button>
       </div>
     </div>
+    
+    <!-- Ticker de actividades GRANDE -->
+    <div class="activity-ticker" style="margin-bottom: 15px;">
+      <div class="ticker-header" style="padding: 12px 16px; font-size: 14px; font-weight: bold;">📈 ACTIVIDAD EN TIEMPO REAL - CABA</div>
+      <div id="ticker-content" class="ticker-content" style="padding: 12px 0; font-size: 15px;">
+        <div class="ticker-item" style="padding: 0 32px;">🚨 Sistema iniciando...</div>
+      </div>
+    </div>
 
-    <!-- Mapa interactivo -->
-    <div id="map"></div>
+    <!-- Mapa -->
+    <div id="map" style="height: calc(100% - 150px); border-radius: 8px;"></div>
   </div>
-      
-      <!-- Leyenda mejorada -->
-      <div class="legend">
+
+  <!-- Panel lateral derecho con información -->
+  <div style="display: flex; flex-direction: column; gap: 16px; max-height: calc(100vh - 120px); overflow-y: auto;">
+    
+    <!-- Leyenda -->
+    <div class="card" style="padding: 15px;">
+      <div style="background: rgba(59, 130, 246, 0.1); padding: 10px 12px; margin-bottom: 15px; border-radius: 8px; font-size: 14px; font-weight: bold; color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.2); text-align: center;">
+        🗺️ LEYENDA
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 12px;">
         <div class="legend-item">
           <span class="dot rojo"></span>
-          <span>Emergencias Críticas</span>
+          <span>Críticas</span>
         </div>
         <div class="legend-item">
           <span class="dot amarillo"></span>
-          <span>Emergencias Urgentes</span>
+          <span>Urgentes</span>
         </div>
         <div class="legend-item">
           <span class="dot verde"></span>
-          <span>Emergencias Leves</span>
+          <span>Leves</span>
         </div>
         <div class="legend-item">
           <span class="dot agente-policia"></span>
@@ -102,68 +198,57 @@
           <span>Instalaciones</span>
         </div>
       </div>
-      
-      <!-- Ticker de emergencias recientes -->
-      <div class="emergency-ticker">
-        <div class="ticker-title">📢 Últimas Actividades</div>
-        <div id="ticker-content">
-          <!-- Se llena dinámicamente -->
+    </div>
+
+    <!-- Estadísticas operativas -->
+    <div class="card" style="padding: 15px;">
+      <h3 style="margin: 0 0 15px 0; color: #60a5fa; font-size: 16px;">📊 Estado Operativo</h3>
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+        <div class="stat-mini">
+          <div class="value">{{ emergencies.count }}</div>
+          <div>Emergencias Activas</div>
+        </div>
+        <div class="stat-mini">
+          <div class="value">{{ agents.count }}</div>
+          <div>Agentes en Campo</div>
+        </div>
+        <div class="stat-mini">
+          <div class="value">{{ facilities.count }}</div>
+          <div>Instalaciones</div>
+        </div>
+        <div class="stat-mini">
+          <div class="value">15</div>
+          <div>Comunas</div>
         </div>
       </div>
     </div>
-  </div>
-  
-  <div class="card">
+
     <!-- Información de CABA -->
-    <div class="caba-info">
-      <strong>🏛️ Ciudad Autónoma de Buenos Aires</strong><br>
-      <small>Sistema Unificado de Emergencias</small><br>
-      <small>Superficie: 203 km² | 15 Comunas</small>
-    </div>
-    
-    <!-- Estadísticas rápidas -->
-    <div class="stats-mini">
-      <div class="stat-mini">
-        <div class="value">{{ emergencies.count }}</div>
-        <div>Emergencias Activas</div>
-      </div>
-      <div class="stat-mini">
-        <div class="value">{{ agents.count }}</div>
-        <div>Agentes en Campo</div>
-      </div>
-      <div class="stat-mini">
-        <div class="value">{{ facilities.count }}</div>
-        <div>Instalaciones</div>
-      </div>
-      <div class="stat-mini">
-        <div class="value">15</div>
-        <div>Comunas</div>
+    <div class="card" style="padding: 15px;">
+      <div style="background: linear-gradient(135deg, #1e40af, #3730a3); padding: 15px; border-radius: 12px; color: white; text-align: center;">
+        <h4 style="margin: 0 0 8px 0; font-size: 16px;">🏛️ CIUDAD AUTÓNOMA DE BUENOS AIRES</h4>
+        <div style="font-size: 11px; opacity: 0.9; margin-bottom: 12px;">Sistema Unificado de Emergencias</div>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 13px;">
+          <div><strong>Superficie:</strong><br>200 km²</div>
+          <div><strong>Población:</strong><br>3.1M hab.</div>
+          <div><strong>Densidad:</strong><br>15,500 hab/km²</div>
+          <div><strong>Comunas:</strong><br>15 distritos</div>
+        </div>
       </div>
     </div>
-    
-    <h3>🚀 Acciones Rápidas</h3>
-    <div class="body" style="display:grid; gap:12px;">
-      <a class="btn" href="{% url 'create_emergency' %}" style="background: var(--danger); color: white;">
-        🚨 Reportar Emergencia
-      </a>
-      <a class="btn" href="{% url 'dashboard' %}">
-        📊 Dashboard Central
-      </a>
-      <a class="btn" href="{% url 'emergency_list' %}">
-        📋 Lista de Emergencias
-      </a>
-      <a class="btn" href="{% url 'agentes_list' %}">
-        👮 Personal en Servicio
-      </a>
-      <a class="btn" href="{% url 'unidades_por_fuerza' %}">
-        🚗 Flota de Vehículos
-      </a>
-      <a class="btn" href="{% url 'facilities_list' %}">
-        🏢 Red de Instalaciones
-      </a>
-      <a class="btn" href="{% url 'hospitales_list' %}">
-        🏥 Red Hospitalaria
-      </a>
+
+    <!-- Últimas actividades -->
+    <div class="card" style="padding: 15px;">
+      <div class="emergency-ticker">
+        <div class="ticker-title">📢 Últimas Actividades del Sistema</div>
+        <div style="margin-top: 10px; font-size: 12px; line-height: 1.4;">
+          <div style="padding: 8px 0; border-bottom: 1px solid rgba(16, 185, 129, 0.2);">🚨 Nueva emergencia reportada en Comuna 1</div>
+          <div style="padding: 8px 0; border-bottom: 1px solid rgba(16, 185, 129, 0.2);">🚔 Patrulla despachada a Balvanera</div>
+          <div style="padding: 8px 0; border-bottom: 1px solid rgba(16, 185, 129, 0.2);">🚑 Ambulancia en ruta a hospital Fernández</div>
+          <div style="padding: 8px 0; border-bottom: 1px solid rgba(16, 185, 129, 0.2);">🚒 Bomberos controlaron incendio en Palermo</div>
+          <div style="padding: 8px 0;">✅ Emergencia resuelta en San Telmo</div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -174,7 +259,7 @@
   const CABA_BOUNDS = {
     center: [-34.6118, -58.3960],  // Centro más preciso de CABA
     bounds: [[-34.7347, -58.5314], [-34.5265, -58.3309]], // Límites precisos de CABA
-    zoom: 12
+    zoom: 11  // Zoom más alejado para ver toda CABA
   };
 
   // Coordenadas de las 15 comunas de CABA
@@ -217,8 +302,15 @@
     agentes: L.layerGroup().addTo(map),
     instalaciones: L.layerGroup().addTo(map),
     hospitales: L.layerGroup().addTo(map),
-    comunas: L.layerGroup()
+    comunas: L.layerGroup(),
+    rutas: L.layerGroup().addTo(map)
   };
+
+  // Variables para manejo de rutas
+  let activeRoutes = [];
+  let routePolygons = [];
+  let selectedEmergency = null;
+  let trackingInterval = null;
 
   // Función para obtener colores por fuerza
   function getForceColor(force) {
@@ -253,11 +345,11 @@
       }).addTo(layerGroups.emergencias);
       
       var emergencyPopup = `
-        <div style="min-width: 200px;">
+        <div style="min-width: 250px;">
           <h4 style="margin: 0 0 8px 0; color: ${getEmergencyColor('{{ emergency.code }}')};">
-            🚨 EMERGENCIA {{ emergency.code|upper }}
+            🚨 EMERGENCIA #{{ emergency.id }} {{ emergency.code|upper }}
           </h4>
-          <p style="margin: 4px 0;"><strong>Descripción:</strong> {{ emergency.description|escapejs }}</p>
+          <p style="margin: 4px 0;"><strong>Descripción:</strong> {{ emergency.description|escapejs|truncatechars:80 }}</p>
           <p style="margin: 4px 0;"><strong>Dirección:</strong> {{ emergency.address|default:"Sin dirección"|escapejs }}</p>
           <p style="margin: 4px 0;"><strong>Estado:</strong> {{ emergency.status|title }}</p>
           <p style="margin: 4px 0;"><strong>Reportado:</strong> {{ emergency.reported_at|date:"d/m/Y H:i" }}</p>
@@ -267,9 +359,32 @@
           {% if emergency.onda_verde %}
             <p style="color: #dc2626; font-weight: bold;">🚨 ONDA VERDE ACTIVADA</p>
           {% endif %}
+          <div style="margin-top: 12px; display: flex; gap: 5px; flex-wrap: wrap;">
+            <button onclick="calculateRoutes({{ emergency.id }})" class="btn" style="background: #3b82f6; color: white; font-size: 11px; padding: 4px 8px;">
+              🗺️ Calcular Rutas
+            </button>
+            <button onclick="assignOptimalResources({{ emergency.id }})" class="btn" style="background: #10b981; color: white; font-size: 11px; padding: 4px 8px;">
+              ⚡ Asignar Óptimo
+            </button>
+            {% if emergency.code == 'rojo' %}
+            <button onclick="activateGreenWave({{ emergency.id }})" class="btn" style="background: #dc2626; color: white; font-size: 11px; padding: 4px 8px;">
+              🚦 Onda Verde
+            </button>
+            {% endif %}
+            <a href="/detalle/{{ emergency.id }}/" class="btn" style="background: #6b7280; color: white; font-size: 11px; padding: 4px 8px; text-decoration: none;">
+              👁️ Detalle
+            </a>
+          </div>
+          <div id="routes-info-{{ emergency.id }}" style="margin-top: 10px; font-size: 12px; max-height: 150px; overflow-y: auto;"></div>
         </div>
       `;
       emergencyMarker.bindPopup(emergencyPopup);
+      
+      // Event listener para selección de emergencia
+      emergencyMarker.on('click', function() {
+        selectedEmergency = {{ emergency.id }};
+        highlightEmergency(emergencyMarker);
+      });
     {% endif %}
   {% endfor %}
 
@@ -468,19 +583,139 @@
     map.setView(CABA_BOUNDS.center, CABA_BOUNDS.zoom);
   });
 
-  // Botón redistribuir agentes
-  document.getElementById('btn-redistribuir').addEventListener('click', () => {
-    agentData.forEach((a, idx) => {
-      // Distribuir aleatoriamente dentro de CABA
-      const latRange = CABA_BOUNDS.bounds[1][0] - CABA_BOUNDS.bounds[0][0];
-      const lonRange = CABA_BOUNDS.bounds[1][1] - CABA_BOUNDS.bounds[0][1];
-      
-      a.lat = CABA_BOUNDS.bounds[0][0] + Math.random() * latRange;
-      a.lon = CABA_BOUNDS.bounds[0][1] + Math.random() * lonRange;
-      
-      agentMarkers[idx].setLatLng([a.lat, a.lon]);
+  // Botón limpiar rutas
+  document.getElementById('btn-limpiar-rutas').addEventListener('click', () => {
+    clearRoutes();
+    if (trackingInterval) {
+      clearInterval(trackingInterval);
+      trackingInterval = null;
+    }
+    
+    // Limpiar información de rutas en todos los popups
+    document.querySelectorAll('[id^="routes-info-"]').forEach(div => {
+      div.innerHTML = '';
     });
+    
+    updateTickerWithActivity('🧹 Rutas limpiadas del mapa');
   });
+
+  // Botón redistribuir agentes (con API inteligente)
+  document.getElementById('btn-redistribuir').addEventListener('click', async () => {
+    const button = document.getElementById('btn-redistribuir');
+    button.innerHTML = '⏳';
+    button.disabled = true;
+    
+    try {
+      const response = await fetch('/api/redistribute/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken')
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        updateTickerWithActivity('🔄 Recursos redistribuidos inteligentemente - Evitando río');
+        // Recargar página para mostrar nueva distribución
+        setTimeout(() => {
+          location.reload();
+        }, 2000);
+      } else {
+        updateTickerWithActivity(`❌ Error redistribuyendo: ${data.message}`);
+      }
+    } catch (error) {
+      updateTickerWithActivity(`❌ Error: ${error.message}`);
+    } finally {
+      button.innerHTML = '🔄';
+      button.disabled = false;
+    }
+  });
+
+  // ===== FUNCIONES DE ONDA VERDE =====
+  
+  async function activateGreenWave(emergencyId) {
+    const routesInfoDiv = document.getElementById(`routes-info-${emergencyId}`);
+    routesInfoDiv.innerHTML = '<div style="color: #dc2626;">🚦 Activando Onda Verde...</div>';
+    
+    try {
+      const response = await fetch(`/api/green-wave/${emergencyId}/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken')
+        }
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        routesInfoDiv.innerHTML = `
+          <div style="border-top: 1px solid #dc2626; padding-top: 8px; margin-top: 8px;">
+            <div style="color: #dc2626; font-weight: bold;">🚦 ONDA VERDE ACTIVADA</div>
+            <div style="font-size: 11px; margin: 4px 0;">
+              ✅ ${data.message}<br>
+              🚦 Intersecciones sincronizadas: ${data.total_intersections}<br>
+              ⏱️ Semáforos coordinados para paso libre
+            </div>
+          </div>
+        `;
+        
+        // Iniciar visualización de semáforos
+        startTrafficLightVisualization();
+        
+        updateTickerWithActivity(`🚦 Onda Verde activada para Emergencia #${emergencyId} - ${data.total_intersections} semáforos`);
+      } else {
+        routesInfoDiv.innerHTML = `<div style="color: #dc2626;">❌ ${data.message}</div>`;
+      }
+      
+    } catch (error) {
+      console.error('Error activando onda verde:', error);
+      routesInfoDiv.innerHTML = `<div style="color: #dc2626;">❌ Error: ${error.message}</div>`;
+    }
+  }
+  
+  async function startTrafficLightVisualization() {
+    try {
+      const response = await fetch('/api/traffic-status/');
+      const data = await response.json();
+      
+      if (data.success && data.waves_data.length > 0) {
+        // Limpiar visualizaciones anteriores de semáforos
+        layerGroups.rutas.eachLayer(layer => {
+          if (layer.options && layer.options.isTrafficLight) {
+            layerGroups.rutas.removeLayer(layer);
+          }
+        });
+        
+        // Mostrar intersecciones con onda verde
+        data.waves_data.forEach(wave => {
+          wave.intersections.forEach(intersection => {
+            const trafficIcon = L.circleMarker([intersection.lat, intersection.lon], {
+              radius: 6,
+              color: '#22c55e',
+              fillColor: '#22c55e',
+              fillOpacity: 0.8,
+              weight: 2,
+              className: 'traffic-light-green',
+              isTrafficLight: true
+            }).addTo(layerGroups.rutas);
+            
+            trafficIcon.bindPopup(`
+              <div>
+                <h5>🚦 ${intersection.name}</h5>
+                <p><strong>Estado:</strong> <span style="color: #22c55e;">VERDE - ONDA ACTIVA</span></p>
+                <p><strong>Prioridad:</strong> ${intersection.priority === 1 ? 'Alta' : 'Normal'}</p>
+                <p><strong>Verde hasta:</strong> ${new Date(intersection.green_end).toLocaleTimeString()}</p>
+              </div>
+            `);
+          });
+        });
+      }
+    } catch (error) {
+      console.error('Error visualizando semáforos:', error);
+    }
+  }
 
   // Ticker de actividades
   function updateTicker() {
@@ -503,6 +738,245 @@
       div.textContent = activity;
       ticker.appendChild(div);
     }
+  }
+
+  // ===== FUNCIONES DE RUTEO =====
+  
+  function highlightEmergency(marker) {
+    // Resaltar emergencia seleccionada
+    marker.setStyle({
+      radius: 12,
+      weight: 5,
+      className: 'emergency-selected'
+    });
+  }
+  
+  function clearRoutes() {
+    // Limpiar rutas anteriores
+    layerGroups.rutas.clearLayers();
+    activeRoutes = [];
+    routePolygons = [];
+  }
+  
+  async function calculateRoutes(emergencyId) {
+    const routesInfoDiv = document.getElementById(`routes-info-${emergencyId}`);
+    routesInfoDiv.innerHTML = '<div style="color: #3b82f6;">🔄 Calculando rutas optimizadas...</div>';
+    
+    try {
+      const response = await fetch(`/api/routes/${emergencyId}/`);
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Error calculando rutas');
+      }
+      
+      clearRoutes(); // Limpiar rutas anteriores
+      
+      if (data.routes.length === 0) {
+        routesInfoDiv.innerHTML = '<div style="color: #f59e0b;">⚠️ No hay recursos disponibles</div>';
+        return;
+      }
+      
+      // Mostrar información de rutas
+      let routesHtml = '<div style="border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 8px;">';
+      routesHtml += `<strong>📍 Rutas Calculadas (${data.routes.length}):</strong><br>`;
+      
+      data.routes.forEach((route, index) => {
+        // Dibujar ruta en el mapa
+        if (route.route_geometry && route.route_geometry.coordinates) {
+          const routeColor = getRouteColor(index);
+          const routeLine = L.geoJSON(route.route_geometry, {
+            style: {
+              color: routeColor,
+              weight: 4,
+              opacity: 0.8,
+              dashArray: '10,10'
+            }
+          }).addTo(layerGroups.rutas);
+          
+          // Añadir popup a la ruta
+          routeLine.bindPopup(`
+            <div>
+              <h5>${route.resource_name}</h5>
+              <p><strong>Distancia:</strong> ${route.distance_km} km</p>
+              <p><strong>ETA:</strong> ${route.eta_minutes} min</p>
+              <p><strong>Proveedor:</strong> ${route.provider}</p>
+            </div>
+          `);
+          
+          activeRoutes.push({
+            id: route.resource_id,
+            line: routeLine,
+            route: route
+          });
+        }
+        
+        // Añadir información al popup
+        const priority = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+        routesHtml += `
+          <div style="font-size: 11px; margin: 2px 0; padding: 2px 0; border-bottom: 1px solid #f3f4f6;">
+            ${priority} ${route.resource_name}<br>
+            &nbsp;&nbsp;&nbsp;📏 ${route.distance_km} km | ⏱️ ${route.eta_minutes} min
+          </div>
+        `;
+      });
+      
+      routesHtml += '</div>';
+      routesInfoDiv.innerHTML = routesHtml;
+      
+      // Centrar mapa en la emergencia y rutas
+      const group = new L.featureGroup(activeRoutes.map(r => r.line));
+      map.fitBounds(group.getBounds(), { padding: [20, 20] });
+      
+    } catch (error) {
+      console.error('Error calculando rutas:', error);
+      routesInfoDiv.innerHTML = `<div style="color: #dc2626;">❌ Error: ${error.message}</div>`;
+    }
+  }
+  
+  async function assignOptimalResources(emergencyId) {
+    const routesInfoDiv = document.getElementById(`routes-info-${emergencyId}`);
+    routesInfoDiv.innerHTML = '<div style="color: #10b981;">🚀 Asignando recursos óptimos...</div>';
+    
+    try {
+      const response = await fetch(`/api/assign/${emergencyId}/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken')
+        }
+      });
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Error asignando recursos');
+      }
+      
+      // Mostrar resultado de asignación
+      let assignedHtml = '<div style="border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 8px;">';
+      assignedHtml += `<div style="color: #10b981; font-weight: bold;">✅ ${data.message}</div>`;
+      
+      data.assigned.forEach(resource => {
+        assignedHtml += `
+          <div style="font-size: 11px; margin: 4px 0; color: #059669;">
+            🚨 ${resource.resource_name}<br>
+            &nbsp;&nbsp;&nbsp;📏 ${resource.distance_km} km | ⏱️ ${resource.eta_minutes} min
+          </div>
+        `;
+      });
+      
+      assignedHtml += '</div>';
+      routesInfoDiv.innerHTML = assignedHtml;
+      
+      // Iniciar seguimiento en tiempo real
+      startRealTimeTracking();
+      
+      // Actualizar ticker con nueva actividad
+      updateTickerWithActivity(`🚨 Recursos asignados a Emergencia #${emergencyId}`);
+      
+    } catch (error) {
+      console.error('Error asignando recursos:', error);
+      routesInfoDiv.innerHTML = `<div style="color: #dc2626;">❌ Error: ${error.message}</div>`;
+    }
+  }
+  
+  function getRouteColor(index) {
+    const colors = ['#dc2626', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
+    return colors[index % colors.length];
+  }
+  
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+  
+  async function startRealTimeTracking() {
+    if (trackingInterval) clearInterval(trackingInterval);
+    
+    trackingInterval = setInterval(async () => {
+      try {
+        const response = await fetch('/api/tracking/');
+        const data = await response.json();
+        
+        if (data.tracking_data.length > 0) {
+          updateTrackingVisualization(data.tracking_data);
+          updateTickerWithTracking(data.tracking_data);
+        }
+      } catch (error) {
+        console.error('Error en seguimiento:', error);
+      }
+    }, 10000); // Cada 10 segundos
+  }
+  
+  function updateTrackingVisualization(trackingData) {
+    // Limpiar visualizaciones anteriores de seguimiento
+    layerGroups.rutas.eachLayer(layer => {
+      if (layer.options && layer.options.isTracking) {
+        layerGroups.rutas.removeLayer(layer);
+      }
+    });
+    
+    // Mostrar recursos en ruta
+    trackingData.forEach(resource => {
+      if (resource.route_geometry && resource.route_geometry.coordinates) {
+        const trackingLine = L.geoJSON(resource.route_geometry, {
+          style: {
+            color: '#10b981',
+            weight: 6,
+            opacity: 0.9,
+            dashArray: '5,15'
+          },
+          isTracking: true
+        }).addTo(layerGroups.rutas);
+        
+        trackingLine.bindPopup(`
+          <div>
+            <h5>🚨 ${resource.name} - EN RUTA</h5>
+            <p><strong>ETA Restante:</strong> ${resource.eta_minutes} min</p>
+            <p><strong>Distancia:</strong> ${resource.distance_remaining_km} km</p>
+            <p><strong>Estado:</strong> ${resource.status}</p>
+          </div>
+        `);
+      }
+    });
+  }
+  
+  function updateTickerWithActivity(message) {
+    const ticker = document.getElementById('ticker-content');
+    const newActivity = document.createElement('div');
+    newActivity.className = 'ticker-item';
+    newActivity.textContent = message;
+    newActivity.style.backgroundColor = 'rgba(16, 185, 129, 0.1)';
+    newActivity.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+    ticker.insertBefore(newActivity, ticker.firstChild);
+    
+    // Mantener solo las últimas 3 actividades
+    while (ticker.children.length > 3) {
+      ticker.removeChild(ticker.lastChild);
+    }
+  }
+  
+  function updateTickerWithTracking(trackingData) {
+    if (trackingData.length === 0) return;
+    
+    const messages = [
+      `🚔 ${trackingData.length} recursos en ruta hacia emergencias`,
+      `⏱️ Próximo arribo en ${Math.min(...trackingData.map(r => r.eta_minutes))} minutos`,
+      `📊 Seguimiento activo de recursos despachados`
+    ];
+    
+    const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+    updateTickerWithActivity(randomMessage);
   }
 
   // Inicialización

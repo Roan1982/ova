@@ -3,7 +3,8 @@ from .views import (
     home, create_emergency, emergency_list,
     process_emergency, emergency_detail, resolve_emergency,
     agentes_list, unidades_por_fuerza, hospitales_list, facilities_list, dashboard,
-    ai_status_view
+    ai_status_view, calculate_routes_api, assign_optimal_resources, real_time_tracking,
+    activate_green_wave_api, traffic_status_api, redistribute_resources_api
 )
 
 urlpatterns = [
@@ -20,4 +21,14 @@ urlpatterns = [
     path('instalaciones/', facilities_list, name='facilities_list'),
     path('dashboard/', dashboard, name='dashboard'),
     path('ai-status/', ai_status_view, name='ai_status'),
+    
+    # APIs de ruteo
+    path('api/routes/<int:emergency_id>/', calculate_routes_api, name='calculate_routes_api'),
+    path('api/assign/<int:emergency_id>/', assign_optimal_resources, name='assign_optimal_resources'),
+    path('api/tracking/', real_time_tracking, name='real_time_tracking'),
+    
+    # APIs de onda verde y tráfico
+    path('api/green-wave/<int:emergency_id>/', activate_green_wave_api, name='activate_green_wave_api'),
+    path('api/traffic-status/', traffic_status_api, name='traffic_status_api'),
+    path('api/redistribute/', redistribute_resources_api, name='redistribute_resources_api'),
 ]

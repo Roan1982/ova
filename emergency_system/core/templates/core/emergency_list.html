@@ -10,10 +10,17 @@
 .card-meta { color: var(--muted); font-size: 13px; margin-bottom: 6px; }
 .card-actions a { margin-right: 10px; text-decoration: none; }
 .msg { padding: 8px 12px; border-radius: 6px; background: #0f2f1f; border: 1px solid #14532d; margin-bottom: 12px; }
+.section-header { background: linear-gradient(135deg, #1e40af, #3730a3); padding: 15px 20px; border-radius: 12px; margin: 20px 0 15px 0; color: white; }
+.section-count { background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 8px; font-size: 12px; margin-left: 10px; }
+.emergency-section { margin-bottom: 30px; }
+.ai-badge { background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); color: #60a5fa; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 5px; }
 {% endblock %}
 {% block content %}
-    <h1>Lista de Emergencias</h1>
-    <div class="actions"><a class="btn" href="{% url 'create_emergency' %}">Reportar Emergencia</a></div>
+    <h1>📋 Lista de Emergencias - Sistema CABA</h1>
+    <div class="actions">
+        <a class="btn" href="{% url 'create_emergency' %}" style="background: var(--danger); color: white;">🚨 Reportar Nueva Emergencia</a>
+        <a class="btn" href="{% url 'dashboard' %}">📊 Ver Dashboard</a>
+    </div>
 
     {% if messages %}
         {% for message in messages %}
@@ -21,25 +28,138 @@
         {% endfor %}
     {% endif %}
 
-    {% for emergency in emergencies %}
-        <div class="card">
-            <div class="card-title">
-                <span class="tag {{ emergency.code }}">{{ emergency.code|upper }}</span>
-                {{ emergency.description }}
-            </div>
-            <div class="card-meta">Dirección: {{ emergency.address }} | Estado: {{ emergency.status }} | Reportado: {{ emergency.reported_at|date:"d/m/Y H:i" }}</div>
-            {% if emergency.onda_verde %}<div class="card-meta">Onda Verde: ACTIVADA</div>{% endif %}
-            {% if emergency.assigned_force %}
-                <div class="card-meta">Fuerza: {{ emergency.assigned_force.name }} {% if emergency.assigned_vehicle %}| Vehículo: {{ emergency.assigned_vehicle.type }}{% endif %}</div>
-            {% endif %}
-            <div class="card-actions">
-                <a href="{% url 'emergency_detail' emergency.id %}">Detalle</a>
-                {% if emergency.status == 'pendiente' %}
-                    <a href="{% url 'process_emergency' emergency.id %}">Procesar con IA</a>
-                {% endif %}
+    <!-- Emergencias Pendientes (Sin procesar por IA) -->
+    <div class="emergency-section">
+        <div class="section-header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    ⏳ EMERGENCIAS PENDIENTES DE PROCESAMIENTO
+                    <span class="section-count">{{ total_pendientes }}</span>
+                </div>
+                <div style="font-size: 12px; opacity: 0.8;">Requieren clasificación de IA</div>
             </div>
         </div>
-    {% empty %}
-        <p>No hay emergencias cargadas.</p>
-    {% endfor %}
+        {% if emergencias_pendientes %}
+            {% for emergency in emergencias_pendientes %}
+                <div class="card" style="border-left: 4px solid #f59e0b;">
+                    <div class="card-title">
+                        <span class="tag {{ emergency.code|default:'verde' }}">{{ emergency.code|default:'PTE'|upper }}</span>
+                        {{ emergency.description }}
+                        <span style="background: #f59e0b; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 8px;">SIN PROCESAR</span>
+                    </div>
+                    <div class="card-meta">
+                        <strong>📍 Dirección:</strong> {{ emergency.address|default:"Sin dirección especificada" }}<br>
+                        <strong>📊 Estado:</strong> {{ emergency.get_status_display }} | 
+                        <strong>🕒 Reportado:</strong> {{ emergency.reported_at|date:"d/m/Y H:i" }}
+                    </div>
+                    <div class="card-actions">
+                        <a href="{% url 'process_emergency' emergency.id %}" class="btn" style="background: var(--warning); color: white; font-size: 12px;">🤖 Procesar con IA</a>
+                        <a href="{% url 'emergency_detail' emergency.id %}" class="btn" style="font-size: 12px;">👁️ Ver Detalle</a>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div style="text-align: center; padding: 20px; color: var(--muted);">
+                ✅ No hay emergencias pendientes de procesamiento
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Emergencias Activas Procesadas -->
+    <div class="emergency-section">
+        <div class="section-header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    🚨 EMERGENCIAS ACTIVAS EN PROCESO
+                    <span class="section-count">{{ total_procesadas }}</span>
+                </div>
+                <div style="font-size: 12px; opacity: 0.8;">Clasificadas y asignadas</div>
+            </div>
+        </div>
+        {% if emergencias_procesadas %}
+            {% for emergency in emergencias_procesadas %}
+                <div class="card" style="border-left: 4px solid {% if emergency.code == 'rojo' %}#dc2626{% elif emergency.code == 'amarillo' %}#f59e0b{% else %}#22c55e{% endif %};">
+                    <div class="card-title">
+                        <span class="tag {{ emergency.code }}">{{ emergency.code|upper }}</span>
+                        {{ emergency.description }}
+                        {% if emergency.ai_response %}<span class="ai-badge">🤖 IA</span>{% endif %}
+                        {% if emergency.onda_verde %}<span style="background: #dc2626; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 5px; animation: pulse 2s infinite;">🚨 ONDA VERDE</span>{% endif %}
+                    </div>
+                    <div class="card-meta">
+                        <strong>📍 Dirección:</strong> {{ emergency.address|default:"Sin dirección especificada" }}<br>
+                        <strong>📊 Estado:</strong> {{ emergency.get_status_display }}
+                        {% if emergency.assigned_force %} | <strong>👥 Fuerza:</strong> {{ emergency.assigned_force.name }}{% endif %}
+                        {% if emergency.assigned_vehicle %} | <strong>🚗 Vehículo:</strong> {{ emergency.assigned_vehicle.type }}{% endif %}<br>
+                        <strong>🕒 Reportado:</strong> {{ emergency.reported_at|date:"d/m/Y H:i" }} | 
+                        <strong>⚡ Prioridad:</strong> {{ emergency.priority }}
+                    </div>
+                    <div class="card-actions">
+                        <a href="{% url 'emergency_detail' emergency.id %}" class="btn" style="font-size: 12px;">👁️ Ver Detalle</a>
+                        <a href="{% url 'resolve_emergency' emergency.id %}" class="btn" style="background: var(--success); color: white; font-size: 12px;">✅ Resolver</a>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div style="text-align: center; padding: 20px; color: var(--muted);">
+                ✅ No hay emergencias activas en proceso
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Emergencias Finalizadas -->
+    <div class="emergency-section">
+        <div class="section-header" style="background: linear-gradient(135deg, #059669, #047857);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    ✅ EMERGENCIAS FINALIZADAS
+                    <span class="section-count">{{ total_finalizadas }}</span>
+                </div>
+                <div style="font-size: 12px; opacity: 0.8;">Resueltas exitosamente</div>
+            </div>
+        </div>
+        {% if emergencias_finalizadas %}
+            {% for emergency in emergencias_finalizadas %}
+                <div class="card" style="border-left: 4px solid #059669; opacity: 0.8;">
+                    <div class="card-title">
+                        <span class="tag verde">RESUELTA</span>
+                        {{ emergency.description }}
+                        {% if emergency.ai_response %}<span class="ai-badge">🤖 IA</span>{% endif %}
+                    </div>
+                    <div class="card-meta">
+                        <strong>📍 Dirección:</strong> {{ emergency.address|default:"Sin dirección especificada" }}<br>
+                        <strong>🕒 Reportado:</strong> {{ emergency.reported_at|date:"d/m/Y H:i" }} | 
+                        <strong>✅ Resuelto:</strong> {{ emergency.resolved_at|date:"d/m/Y H:i" }}
+                        {% if emergency.assigned_force %} | <strong>👥 Fuerza:</strong> {{ emergency.assigned_force.name }}{% endif %}
+                        {% if emergency.resolution_notes %}<br><strong>📝 Notas:</strong> {{ emergency.resolution_notes|truncatechars:100 }}{% endif %}
+                    </div>
+                    <div class="card-actions">
+                        <a href="{% url 'emergency_detail' emergency.id %}" class="btn" style="font-size: 12px;">👁️ Ver Detalle</a>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div style="text-align: center; padding: 20px; color: var(--muted);">
+                📝 No hay emergencias finalizadas aún
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Resumen estadístico -->
+    <div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 12px; margin-top: 30px; border: 1px solid rgba(59, 130, 246, 0.2);">
+        <h4 style="margin: 0 0 10px 0; color: #60a5fa;">📊 Resumen Estadístico</h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; font-size: 13px;">
+            <div><strong>Pendientes:</strong> {{ total_pendientes }} emergencias</div>
+            <div><strong>En proceso:</strong> {{ total_procesadas }} emergencias</div>
+            <div><strong>Finalizadas:</strong> {{ total_finalizadas }} emergencias</div>
+            <div><strong>Total:</strong> {{ total_pendientes|add:total_procesadas|add:total_finalizadas }} emergencias</div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
 {% endblock %}

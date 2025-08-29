@@ -1,22 +1,35 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.utils import timezone
+from django.http import JsonResponse
 import math
 import requests
+import json
 from django.db import models
 from django.db.models import Count, Q
 from .models import Emergency, Force, Vehicle, Agent, Hospital, EmergencyDispatch, Facility
 from .forms import EmergencyForm
 from .llm import classify_with_ollama
+from .routing import calculate_emergency_routes, get_real_time_eta
+
+# Importar sistema de onda verde
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from traffic_light_system import traffic_manager, activate_emergency_green_wave
 
 def home(request):
-    emergencies = Emergency.objects.all()
+    # Solo mostrar emergencias activas (no resueltas) en el mapa
+    emergencies = Emergency.objects.filter(status__in=['pendiente', 'asignada'])
     facilities = Facility.objects.all()
     agents = Agent.objects.exclude(lat__isnull=True).exclude(lon__isnull=True).select_related('force')
+    # Agregar hospitales para el mapa
+    hospitals = Hospital.objects.all()
     ctx = {
         'emergencies': emergencies,
         'facilities': facilities,
         'agents': agents,
+        'hospitals': hospitals,
     }
     return render(request, 'core/home.html', ctx)
 
@@ -50,8 +63,33 @@ def create_emergency(request):
     return render(request, 'core/create_emergency.html', {'form': form})
 
 def emergency_list(request):
-    emergencies = Emergency.objects.all().order_by('-reported_at')
-    return render(request, 'core/emergency_list.html', {'emergencies': emergencies})
+    # Emergencias activas sin procesar por IA
+    emergencias_pendientes = Emergency.objects.filter(
+        status__in=['pendiente'], 
+        ai_response__isnull=True
+    ).order_by('-priority', '-reported_at')
+    
+    # Emergencias activas procesadas por IA
+    emergencias_procesadas = Emergency.objects.filter(
+        status='asignada',
+        ai_response__isnull=False
+    ).order_by('-priority', '-reported_at')
+    
+    # Emergencias finalizadas
+    emergencias_finalizadas = Emergency.objects.filter(
+        status='resuelta'
+    ).order_by('-resolved_at')
+    
+    context = {
+        'emergencias_pendientes': emergencias_pendientes,
+        'emergencias_procesadas': emergencias_procesadas, 
+        'emergencias_finalizadas': emergencias_finalizadas,
+        'total_pendientes': emergencias_pendientes.count(),
+        'total_procesadas': emergencias_procesadas.count(),
+        'total_finalizadas': emergencias_finalizadas.count(),
+    }
+    
+    return render(request, 'core/emergency_list.html', context)
 
 
 def _haversine_km(lat1, lon1, lat2, lon2):
@@ -523,3 +561,306 @@ def resolve_emergency(request, pk):
         return redirect('emergency_detail', pk=emergency.pk)
     # Si es GET, mostrar formulario simple en el detalle (redirigir)
     return redirect('emergency_detail', pk=emergency.pk)
+
+def calculate_routes_api(request, emergency_id):
+    """
+    API endpoint para calcular rutas optimizadas para una emergencia
+    """
+    emergency = get_object_or_404(Emergency, pk=emergency_id)
+    
+    if not (emergency.location_lat and emergency.location_lon):
+        return JsonResponse({
+            'error': 'La emergencia no tiene coordenadas válidas',
+            'routes': []
+        }, status=400)
+    
+    try:
+        # Calcular rutas optimizadas
+        route_assignments = calculate_emergency_routes(emergency)
+        
+        # Formatear respuesta para el frontend
+        routes_data = []
+        for assignment in route_assignments[:5]:  # Top 5 recursos más cercanos
+            resource = assignment['resource']
+            route_info = assignment['route_info']
+            
+            routes_data.append({
+                'resource_id': resource['id'],
+                'resource_name': resource['name'],
+                'resource_type': resource['resource_type'],
+                'distance_km': round(assignment['distance_km'], 2),
+                'eta_minutes': round(assignment['estimated_arrival'], 1),
+                'route_geometry': route_info['geometry'],
+                'provider': route_info['provider'],
+                'priority_score': assignment['priority_score']
+            })
+        
+        return JsonResponse({
+            'emergency_id': emergency_id,
+            'emergency_coords': [emergency.location_lat, emergency.location_lon],
+            'routes': routes_data,
+            'total_resources': len(route_assignments)
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error calculando rutas: {str(e)}',
+            'routes': []
+        }, status=500)
+
+def assign_optimal_resources(request, emergency_id):
+    """
+    Vista para asignar automáticamente los recursos más óptimos a una emergencia
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    emergency = get_object_or_404(Emergency, pk=emergency_id)
+    
+    try:
+        # Calcular rutas optimizadas
+        route_assignments = calculate_emergency_routes(emergency)
+        
+        if not route_assignments:
+            return JsonResponse({
+                'error': 'No hay recursos disponibles para asignar',
+                'assigned': []
+            })
+        
+        assigned_resources = []
+        
+        # Asignar los mejores recursos basado en tipo de emergencia
+        emergency_type = emergency.code or 'verde'
+        max_assignments = 3 if emergency_type == 'rojo' else 2 if emergency_type == 'amarillo' else 1
+        
+        for i, assignment in enumerate(route_assignments[:max_assignments]):
+            resource = assignment['resource']
+            resource_obj = resource['resource_obj']
+            
+            # Actualizar estado del recurso
+            if resource['resource_type'] == 'vehicle':
+                resource_obj.status = 'en_ruta'
+                resource_obj.target_lat = emergency.location_lat
+                resource_obj.target_lon = emergency.location_lon
+                resource_obj.save()
+                
+                # Asignar vehículo a emergencia si es el primero
+                if i == 0 and not emergency.assigned_vehicle:
+                    emergency.assigned_vehicle = resource_obj
+                    emergency.assigned_force = resource_obj.force
+                    
+            elif resource['resource_type'] == 'agent':
+                resource_obj.status = 'en_ruta'
+                resource_obj.target_lat = emergency.location_lat
+                resource_obj.target_lon = emergency.location_lon
+                resource_obj.save()
+            
+            assigned_resources.append({
+                'resource_id': resource['id'],
+                'resource_name': resource['name'],
+                'eta_minutes': round(assignment['estimated_arrival'], 1),
+                'distance_km': round(assignment['distance_km'], 2)
+            })
+        
+        # Actualizar estado de emergencia
+        if emergency.status == 'pendiente':
+            emergency.status = 'asignada'
+        
+        emergency.save()
+        
+        return JsonResponse({
+            'success': True,
+            'emergency_id': emergency_id,
+            'assigned': assigned_resources,
+            'message': f'Se asignaron {len(assigned_resources)} recursos a la emergencia'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error asignando recursos: {str(e)}',
+            'assigned': []
+        }, status=500)
+
+def real_time_tracking(request):
+    """
+    API para seguimiento en tiempo real de recursos en ruta
+    """
+    # Obtener todos los recursos en ruta
+    vehicles_in_route = Vehicle.objects.filter(status='en_ruta').select_related('force')
+    agents_in_route = Agent.objects.filter(status='en_ruta').select_related('force')
+    
+    tracking_data = []
+    
+    # Procesar vehículos en ruta
+    for vehicle in vehicles_in_route:
+        if vehicle.current_lat and vehicle.current_lon and vehicle.target_lat and vehicle.target_lon:
+            # Calcular ETA actual
+            eta_data = get_real_time_eta(
+                (vehicle.current_lat, vehicle.current_lon),
+                (vehicle.target_lat, vehicle.target_lon)
+            )
+            
+            tracking_data.append({
+                'id': f'vehicle_{vehicle.id}',
+                'type': 'vehicle',
+                'name': f"{vehicle.type} - {vehicle.force.name}",
+                'current_position': [vehicle.current_lat, vehicle.current_lon],
+                'target_position': [vehicle.target_lat, vehicle.target_lon],
+                'eta_minutes': round(eta_data['eta_minutes'], 1),
+                'distance_remaining_km': round(eta_data['distance_km'], 2),
+                'route_geometry': eta_data['route_geometry'],
+                'status': vehicle.status
+            })
+    
+    # Procesar agentes en ruta
+    for agent in agents_in_route:
+        if agent.lat and agent.lon and agent.target_lat and agent.target_lon:
+            # Calcular ETA actual
+            eta_data = get_real_time_eta(
+                (agent.lat, agent.lon),
+                (agent.target_lat, agent.target_lon)
+            )
+            
+            tracking_data.append({
+                'id': f'agent_{agent.id}',
+                'type': 'agent',
+                'name': f"{agent.name} - {agent.force.name}",
+                'current_position': [agent.lat, agent.lon],
+                'target_position': [agent.target_lat, agent.target_lon],
+                'eta_minutes': round(eta_data['eta_minutes'], 1),
+                'distance_remaining_km': round(eta_data['distance_km'], 2),
+                'route_geometry': eta_data['route_geometry'],
+                'status': agent.status
+            })
+    
+    return JsonResponse({
+        'tracking_data': tracking_data,
+        'total_resources_in_route': len(tracking_data),
+        'timestamp': timezone.now().isoformat()
+    })
+
+def activate_green_wave_api(request, emergency_id):
+    """
+    API para activar onda verde para una emergencia código rojo
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    emergency = get_object_or_404(Emergency, pk=emergency_id)
+    
+    try:
+        result = activate_emergency_green_wave(emergency)
+        
+        if result['success']:
+            # Actualizar la emergencia para marcar onda verde como activa
+            emergency.onda_verde = True
+            emergency.save(update_fields=['onda_verde'])
+            
+            return JsonResponse({
+                'success': True,
+                'message': result['message'],
+                'total_intersections': result.get('total_intersections', 0),
+                'results': result['results'],
+                'emergency_id': emergency_id
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'message': result['message'],
+                'emergency_id': emergency_id
+            })
+            
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error activando onda verde: {str(e)}',
+            'success': False
+        }, status=500)
+
+def traffic_status_api(request):
+    """
+    API para obtener estado actual de semáforos y ondas verdes
+    """
+    try:
+        active_waves = traffic_manager.get_active_green_waves()
+        
+        # Preparar datos de respuesta
+        waves_data = []
+        total_intersections = 0
+        
+        for wave_id, wave_data in active_waves.items():
+            intersections_info = []
+            for timing in wave_data['timing']:
+                intersections_info.append({
+                    'name': timing['intersection']['name'],
+                    'lat': timing['intersection']['lat'],
+                    'lon': timing['intersection']['lon'],
+                    'arrival_time': timing['arrival_time'].isoformat(),
+                    'green_start': timing['green_start'].isoformat(),
+                    'green_end': timing['green_end'].isoformat(),
+                    'priority': timing['priority']
+                })
+            
+            total_intersections += len(intersections_info)
+            
+            waves_data.append({
+                'wave_id': wave_id,
+                'created_at': wave_data['created_at'].isoformat(),
+                'vehicle_position': wave_data['vehicle_position'],
+                'target_position': wave_data['target_position'],
+                'intersections': intersections_info,
+                'status': wave_data['status']
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'active_waves': len(waves_data),
+            'total_intersections': total_intersections,
+            'waves_data': waves_data,
+            'timestamp': timezone.now().isoformat()
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error obteniendo estado de tráfico: {str(e)}',
+            'success': False
+        }, status=500)
+
+def redistribute_resources_api(request):
+    """
+    API para redistribuir recursos evitando el río
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Ejecutar script de redistribución
+        import subprocess
+        import sys
+        
+        script_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
+            'redistribute_resources.py'
+        )
+        
+        result = subprocess.run([
+            sys.executable, script_path
+        ], capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            return JsonResponse({
+                'success': True,
+                'message': 'Recursos redistribuidos exitosamente',
+                'output': result.stdout
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'message': 'Error en redistribución',
+                'error': result.stderr
+            }, status=500)
+            
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Error redistribuyendo recursos: {str(e)}',
+            'success': False
+        }, status=500)
