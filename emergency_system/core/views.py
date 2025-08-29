@@ -206,35 +206,160 @@ def hospitales_list(request):
 
 def facilities_list(request):
     kind = request.GET.get('tipo')
-    qs = Facility.objects.all().select_related('force').order_by('kind', 'name')
-    if kind in ['comisaria', 'cuartel', 'base_transito']:
-        qs = qs.filter(kind=kind)
-    return render(request, 'core/facilities_list.html', {'facilities': qs, 'kind': kind})
+    facilities_qs = Facility.objects.all().select_related('force').order_by('kind', 'name')
+    hospitals_qs = Hospital.objects.all().order_by('name')
+
+    installations = []
+    # Facilities -> dicts
+    for f in facilities_qs:
+        installations.append({
+            'name': f.name,
+            'kind': f.kind,
+            'kind_display': f.get_kind_display(),
+            'force_name': f.force.name if f.force else '',
+            'address': f.address,
+            'lat': f.lat,
+            'lon': f.lon,
+        })
+    # Hospitals as installations
+    for h in hospitals_qs:
+        installations.append({
+            'name': h.name,
+            'kind': 'hospital',
+            'kind_display': 'Hospital',
+            'force_name': 'SAME',
+            'address': h.address,
+            'lat': h.lat,
+            'lon': h.lon,
+        })
+
+    if kind:
+        allowed = {'comisaria', 'cuartel', 'base_transito', 'hospital'}
+        if kind in allowed:
+            installations = [i for i in installations if i['kind'] == kind]
+
+    # Ordenar por tipo y nombre
+    installations.sort(key=lambda x: (x['kind_display'], x['name']))
+
+    return render(request, 'core/facilities_list.html', {
+        'installations': installations,
+        'kind': kind,
+    })
 
 
 # Dashboard
 
 def dashboard(request):
-    # Vehículos
-    total_vehiculos = Vehicle.objects.count()
-    ocupados_vehiculos = Vehicle.objects.filter(Q(status='en_ruta') | Q(status='ocupado')).count()
-    disponibles_vehiculos = Vehicle.objects.filter(status='disponible').count()
+    # Resumen general de emergencias
+    emergencias_total = Emergency.objects.count()
+    emergencias_activas = Emergency.objects.exclude(status='resuelta').count()
+    emergencias_pendientes = Emergency.objects.filter(status='reportada').count()
+    emergencias_asignadas = Emergency.objects.filter(status='asignada').count()
+    emergencias_en_curso = Emergency.objects.filter(status='en_curso').count()
+    
+    # Emergencias por código de prioridad
+    emergencias_rojo = Emergency.objects.filter(code='rojo').exclude(status='resuelta').count()
+    emergencias_amarillo = Emergency.objects.filter(code='amarillo').exclude(status='resuelta').count()
+    emergencias_verde = Emergency.objects.filter(code='verde').exclude(status='resuelta').count()
 
-    # Camas
+    # Datos por fuerza
+    fuerzas_data = []
+    fuerzas = Force.objects.all().order_by('name')
+    
+    for fuerza in fuerzas:
+        # Vehículos por fuerza
+        vehiculos = Vehicle.objects.filter(force=fuerza)
+        vehiculos_total = vehiculos.count()
+        vehiculos_disponibles = vehiculos.filter(status='disponible').count()
+        vehiculos_en_ruta = vehiculos.filter(status='en_ruta').count()
+        vehiculos_ocupados = vehiculos.filter(status='ocupado').count()
+        
+        # Agentes por fuerza
+        agentes = Agent.objects.filter(force=fuerza)
+        agentes_total = agentes.count()
+        agentes_disponibles = agentes.filter(status='disponible').count()
+        agentes_en_ruta = agentes.filter(status='en_ruta').count()
+        agentes_ocupados = agentes.filter(status='ocupado').count()
+        agentes_en_escena = agentes.filter(status='en_escena').count()
+        
+        # Emergencias asignadas a esta fuerza
+        emergencias_asignadas_fuerza = Emergency.objects.filter(assigned_force=fuerza).exclude(status='resuelta').count()
+        
+        # Instalaciones de esta fuerza
+        instalaciones = Facility.objects.filter(force=fuerza).count()
+        
+        fuerzas_data.append({
+            'fuerza': fuerza,
+            'vehiculos': {
+                'total': vehiculos_total,
+                'disponibles': vehiculos_disponibles,
+                'en_ruta': vehiculos_en_ruta,
+                'ocupados': vehiculos_ocupados,
+                'porcentaje_disponible': round((vehiculos_disponibles / vehiculos_total * 100) if vehiculos_total > 0 else 0, 1)
+            },
+            'agentes': {
+                'total': agentes_total,
+                'disponibles': agentes_disponibles,
+                'en_ruta': agentes_en_ruta,
+                'ocupados': agentes_ocupados,
+                'en_escena': agentes_en_escena,
+                'porcentaje_disponible': round((agentes_disponibles / agentes_total * 100) if agentes_total > 0 else 0, 1)
+            },
+            'emergencias_asignadas': emergencias_asignadas_fuerza,
+            'instalaciones': instalaciones
+        })
+
+    # Totales generales
+    total_vehiculos = Vehicle.objects.count()
+    total_vehiculos_disponibles = Vehicle.objects.filter(status='disponible').count()
+    total_vehiculos_ocupados = Vehicle.objects.filter(Q(status='en_ruta') | Q(status='ocupado')).count()
+    
+    total_agentes = Agent.objects.count()
+    total_agentes_disponibles = Agent.objects.filter(status='disponible').count()
+    total_agentes_ocupados = Agent.objects.exclude(status='disponible').count()
+
+    # Camas hospitalarias
     camas_totales = Hospital.objects.aggregate(total=models.Sum('total_beds'))['total'] or 0
     camas_ocupadas = Hospital.objects.aggregate(total=models.Sum('occupied_beds'))['total'] or 0
     camas_disponibles = max(0, camas_totales - camas_ocupadas)
+    total_hospitales = Hospital.objects.count()
 
     # Despachos activos
     despachos_activos = EmergencyDispatch.objects.exclude(status='finalizado').count()
 
     ctx = {
+        # Emergencias
+        'emergencias_total': emergencias_total,
+        'emergencias_activas': emergencias_activas,
+        'emergencias_pendientes': emergencias_pendientes,
+        'emergencias_asignadas': emergencias_asignadas,
+        'emergencias_en_curso': emergencias_en_curso,
+        'emergencias_rojo': emergencias_rojo,
+        'emergencias_amarillo': emergencias_amarillo,
+        'emergencias_verde': emergencias_verde,
+        
+        # Datos por fuerza
+        'fuerzas_data': fuerzas_data,
+        
+        # Totales generales
         'total_vehiculos': total_vehiculos,
-        'ocupados_vehiculos': ocupados_vehiculos,
-        'disponibles_vehiculos': disponibles_vehiculos,
+        'total_vehiculos_disponibles': total_vehiculos_disponibles,
+        'total_vehiculos_ocupados': total_vehiculos_ocupados,
+        'porcentaje_vehiculos_disponibles': round((total_vehiculos_disponibles / total_vehiculos * 100) if total_vehiculos > 0 else 0, 1),
+        
+        'total_agentes': total_agentes,
+        'total_agentes_disponibles': total_agentes_disponibles,
+        'total_agentes_ocupados': total_agentes_ocupados,
+        'porcentaje_agentes_disponibles': round((total_agentes_disponibles / total_agentes * 100) if total_agentes > 0 else 0, 1),
+        
+        # Hospitales
         'camas_totales': camas_totales,
         'camas_ocupadas': camas_ocupadas,
         'camas_disponibles': camas_disponibles,
+        'total_hospitales': total_hospitales,
+        'porcentaje_camas_disponibles': round((camas_disponibles / camas_totales * 100) if camas_totales > 0 else 0, 1),
+        
+        # Otros
         'despachos_activos': despachos_activos,
     }
     return render(request, 'core/dashboard.html', ctx)

@@ -47,15 +47,15 @@
     <div class="navbar">
         <div class="brand">OVA CABA</div>
         <nav class="navlinks">
-            <a href="{% url 'dashboard' %}">Dashboard</a>
+            <a href="{% url 'dashboard' %}" style="background: var(--primary); color: white; font-weight: bold;">🚨 Dashboard</a>
+            <a href="{% url 'emergency_list' %}">Emergencias</a>
+            <a href="{% url 'create_emergency' %}" style="background: var(--danger); color: white;">Reportar</a>
             <a href="{% url 'agentes_list' %}">Agentes</a>
             <a href="{% url 'unidades_por_fuerza' %}">Unidades</a>
             <a href="{% url 'facilities_list' %}">Instalaciones</a>
             <a href="{% url 'hospitales_list' %}">Hospitales</a>
-            <a href="{% url 'emergency_list' %}">Emergencias</a>
-            <a href="{% url 'create_emergency' %}">Reportar</a>
             <a href="/admin/">Admin</a>
-            <a href="{% url 'home' %}">Inicio</a>
+            <a href="{% url 'home' %}">Mapa</a>
         </nav>
     </div>
 

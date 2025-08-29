@@ -1,30 +1,349 @@
 {% extends 'core/base.html' %}
-{% block title %}Dashboard{% endblock %}
+{% block title %}Dashboard de Emergencias{% endblock %}
 {% block extra_styles %}
-.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.card { background: var(--panel); border: 1px solid #1f2937; border-radius: 8px; padding: 14px; }
-.title { font-weight: bold; margin-bottom: 6px; }
-.value { font-size: 24px; }
-.sub { color: var(--muted); font-size: 12px; }
-@media (max-width: 900px){ .cards { grid-template-columns: 1fr; } }
+.dashboard-container { display: flex; flex-direction: column; gap: 20px; }
+.section { background: var(--panel); border: 1px solid #1f2937; border-radius: 8px; padding: 16px; }
+.section-title { font-size: 18px; font-weight: bold; margin-bottom: 12px; color: var(--primary); border-bottom: 1px solid #1f2937; padding-bottom: 8px; }
+
+/* Cards generales */
+.overview-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.overview-card { background: var(--panel); border: 1px solid #1f2937; border-radius: 8px; padding: 14px; text-align: center; }
+.overview-card .title { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.overview-card .value { font-size: 24px; font-weight: bold; margin-bottom: 4px; }
+.overview-card .subtitle { font-size: 10px; color: var(--muted); }
+
+/* Cards de emergencias por prioridad */
+.priority-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+.priority-card { background: var(--panel); border: 1px solid #1f2937; border-radius: 8px; padding: 14px; text-align: center; }
+.priority-card.rojo { border-left: 4px solid #dc2626; }
+.priority-card.amarillo { border-left: 4px solid #f59e0b; }
+.priority-card.verde { border-left: 4px solid #059669; }
+
+/* Tabla de fuerzas */
+.forces-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+.forces-table th, .forces-table td { border: 1px solid #1f2937; padding: 10px; text-align: left; }
+.forces-table th { background: #0b1220; font-weight: bold; }
+.forces-table tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+
+/* Indicadores de estado */
+.status-indicator { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.status-indicator.disponible { background-color: #059669; }
+.status-indicator.ocupado { background-color: #dc2626; }
+.status-indicator.en_ruta { background-color: #f59e0b; }
+.status-indicator.en_escena { background-color: #7c3aed; }
+
+/* Barras de progreso */
+.progress-bar { background-color: #1f2937; height: 6px; border-radius: 3px; overflow: hidden; margin: 4px 0; }
+.progress-fill { height: 100%; transition: width 0.3s ease; }
+.progress-fill.disponible { background-color: #059669; }
+.progress-fill.ocupado { background-color: #dc2626; }
+
+/* Estadísticas inline */
+.inline-stats { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.stat-item { font-size: 11px; }
+
+@media (max-width: 900px) { 
+  .overview-cards { grid-template-columns: repeat(2, 1fr); }
+  .priority-cards { grid-template-columns: 1fr; }
+  .forces-table { font-size: 12px; }
+  .forces-table th, .forces-table td { padding: 6px; }
+}
+
+/* Animación para elementos críticos */
+.critical-blink {
+  animation: blink 2s linear infinite;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0.5; }
+}
+
+/* Efectos hover para cards interactivas */
+.overview-card:hover {
+  transform: translateY(-2px);
+  transition: transform 0.2s ease;
+  border-color: var(--primary);
+}
+
+/* Timestamp del último refresh */
+.last-update {
+  text-align: center;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 10px;
+}
 {% endblock %}
 {% block content %}
-  <h1>Dashboard de Recursos</h1>
-  <div class="cards">
-    <div class="card">
-      <div class="title">Vehículos Totales</div>
-      <div class="value">{{ total_vehiculos }}</div>
-      <div class="sub">Disponibles: {{ disponibles_vehiculos }} | Ocupados/En ruta: {{ ocupados_vehiculos }}</div>
-    </div>
-    <div class="card">
-      <div class="title">Camas</div>
-      <div class="value">{{ camas_disponibles }} disponibles</div>
-      <div class="sub">Totales: {{ camas_totales }} | Ocupadas: {{ camas_ocupadas }}</div>
-    </div>
-    <div class="card">
-      <div class="title">Despachos Activos</div>
-      <div class="value">{{ despachos_activos }}</div>
-      <div class="sub">Intervenciones en curso</div>
-    </div>
+  <h1>🚨 Dashboard de Situación de Emergencias</h1>
+  
+  <!-- Botón de refresh manual -->
+  <div style="text-align: right; margin-bottom: 10px;">
+    <button onclick="location.reload()" style="background: var(--primary); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+      🔄 Actualizar
+    </button>
+    <span style="margin-left: 10px; font-size: 10px; color: var(--muted);">
+      Auto-refresh cada 30s
+    </span>
   </div>
+  
+  <div class="dashboard-container">
+    
+    <!-- Resumen General -->
+    <div class="overview-cards">
+      <div class="overview-card">
+        <div class="title">EMERGENCIAS ACTIVAS</div>
+        <div class="value" style="color: #dc2626;">{{ emergencias_activas }}</div>
+        <div class="subtitle">de {{ emergencias_total }} totales</div>
+      </div>
+      <div class="overview-card">
+        <div class="title">VEHÍCULOS DISPONIBLES</div>
+        <div class="value" style="color: #059669;">{{ total_vehiculos_disponibles }}</div>
+        <div class="subtitle">{{ porcentaje_vehiculos_disponibles }}% de {{ total_vehiculos }}</div>
+      </div>
+      <div class="overview-card">
+        <div class="title">AGENTES DISPONIBLES</div>
+        <div class="value" style="color: #059669;">{{ total_agentes_disponibles }}</div>
+        <div class="subtitle">{{ porcentaje_agentes_disponibles }}% de {{ total_agentes }}</div>
+      </div>
+      <div class="overview-card">
+        <div class="title">CAMAS DISPONIBLES</div>
+        <div class="value" style="color: #059669;">{{ camas_disponibles }}</div>
+        <div class="subtitle">{{ porcentaje_camas_disponibles }}% de {{ camas_totales }}</div>
+      </div>
+    </div>
+
+    <!-- Emergencias por Prioridad -->
+    <div class="section">
+      <div class="section-title">📊 Emergencias Activas por Prioridad</div>
+      <div class="priority-cards">
+        <div class="priority-card rojo">
+          <div class="title">🔴 CÓDIGO ROJO</div>
+          <div class="value" style="color: #dc2626;">{{ emergencias_rojo }}</div>
+          <div class="subtitle">Críticas</div>
+        </div>
+        <div class="priority-card amarillo">
+          <div class="title">🟡 CÓDIGO AMARILLO</div>
+          <div class="value" style="color: #f59e0b;">{{ emergencias_amarillo }}</div>
+          <div class="subtitle">Urgentes</div>
+        </div>
+        <div class="priority-card verde">
+          <div class="title">🟢 CÓDIGO VERDE</div>
+          <div class="value" style="color: #059669;">{{ emergencias_verde }}</div>
+          <div class="subtitle">No urgentes</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Estado de Emergencias -->
+    <div class="section">
+      <div class="section-title">🎯 Estado de Intervenciones</div>
+      <div class="overview-cards">
+        <div class="overview-card">
+          <div class="title">PENDIENTES</div>
+          <div class="value" style="color: #f59e0b;">{{ emergencias_pendientes }}</div>
+          <div class="subtitle">Sin asignar</div>
+        </div>
+        <div class="overview-card">
+          <div class="title">ASIGNADAS</div>
+          <div class="value" style="color: #3b82f6;">{{ emergencias_asignadas }}</div>
+          <div class="subtitle">En desplazamiento</div>
+        </div>
+        <div class="overview-card">
+          <div class="title">EN CURSO</div>
+          <div class="value" style="color: #7c3aed;">{{ emergencias_en_curso }}</div>
+          <div class="subtitle">En intervención</div>
+        </div>
+        <div class="overview-card">
+          <div class="title">DESPACHOS ACTIVOS</div>
+          <div class="value" style="color: #059669;">{{ despachos_activos }}</div>
+          <div class="subtitle">Coordinación</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detalle por Fuerzas -->
+    <div class="section">
+      <div class="section-title">🚔🚑🚒 Estado por Fuerza</div>
+      <table class="forces-table">
+        <thead>
+          <tr>
+            <th>Fuerza</th>
+            <th>Vehículos</th>
+            <th>Agentes</th>
+            <th>Emergencias Asignadas</th>
+            <th>Instalaciones</th>
+            <th>Disponibilidad</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for data in fuerzas_data %}
+          <tr>
+            <td><strong>{{ data.fuerza.name }}</strong></td>
+            <td>
+              <div class="inline-stats">
+                <span class="stat-item">
+                  <span class="status-indicator disponible"></span>{{ data.vehiculos.disponibles }}
+                </span>
+                <span class="stat-item">
+                  <span class="status-indicator en_ruta"></span>{{ data.vehiculos.en_ruta }}
+                </span>
+                <span class="stat-item">
+                  <span class="status-indicator ocupado"></span>{{ data.vehiculos.ocupados }}
+                </span>
+              </div>
+              <div style="font-size: 10px; color: var(--muted);">Total: {{ data.vehiculos.total }}</div>
+              <div class="progress-bar">
+                <div class="progress-fill disponible" style="width: {{ data.vehiculos.porcentaje_disponible }}%;"></div>
+              </div>
+            </td>
+            <td>
+              <div class="inline-stats">
+                <span class="stat-item">
+                  <span class="status-indicator disponible"></span>{{ data.agentes.disponibles }}
+                </span>
+                <span class="stat-item">
+                  <span class="status-indicator en_ruta"></span>{{ data.agentes.en_ruta }}
+                </span>
+                <span class="stat-item">
+                  <span class="status-indicator ocupado"></span>{{ data.agentes.ocupados }}
+                </span>
+                <span class="stat-item">
+                  <span class="status-indicator en_escena"></span>{{ data.agentes.en_escena }}
+                </span>
+              </div>
+              <div style="font-size: 10px; color: var(--muted);">Total: {{ data.agentes.total }}</div>
+              <div class="progress-bar">
+                <div class="progress-fill disponible" style="width: {{ data.agentes.porcentaje_disponible }}%;"></div>
+              </div>
+            </td>
+            <td style="text-align: center;">
+              {% if data.emergencias_asignadas > 0 %}
+                <span style="color: #f59e0b; font-weight: bold;">{{ data.emergencias_asignadas }}</span>
+              {% else %}
+                <span style="color: var(--muted);">0</span>
+              {% endif %}
+            </td>
+            <td style="text-align: center;">{{ data.instalaciones }}</td>
+            <td>
+              <div style="text-align: center;">
+                <div style="font-weight: bold;">V: {{ data.vehiculos.porcentaje_disponible }}%</div>
+                <div style="font-size: 10px;">A: {{ data.agentes.porcentaje_disponible }}%</div>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" style="text-align: center; color: var(--muted);">No hay fuerzas configuradas</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Recursos Hospitalarios -->
+    <div class="section">
+      <div class="section-title">🏥 Recursos Hospitalarios</div>
+      <div class="overview-cards">
+        <div class="overview-card">
+          <div class="title">HOSPITALES ACTIVOS</div>
+          <div class="value">{{ total_hospitales }}</div>
+          <div class="subtitle">En la red</div>
+        </div>
+        <div class="overview-card">
+          <div class="title">CAMAS TOTALES</div>
+          <div class="value">{{ camas_totales }}</div>
+          <div class="subtitle">Capacidad instalada</div>
+        </div>
+        <div class="overview-card">
+          <div class="title">CAMAS OCUPADAS</div>
+          <div class="value" style="color: #f59e0b;">{{ camas_ocupadas }}</div>
+          <div class="subtitle">En uso</div>
+        </div>
+        <div class="overview-card">
+          <div class="title">CAMAS DISPONIBLES</div>
+          <div class="value" style="color: #059669;">{{ camas_disponibles }}</div>
+          <div class="subtitle">{{ porcentaje_camas_disponibles }}% libres</div>
+        </div>
+      </div>
+      <div class="progress-bar" style="height: 12px; margin-top: 10px;">
+        <div class="progress-fill disponible" style="width: {{ porcentaje_camas_disponibles }}%;"></div>
+      </div>
+    </div>
+
+    <!-- Enlaces de Acceso Rápido -->
+    <div class="section">
+      <div class="section-title">🔗 Accesos Rápidos</div>
+      <div class="overview-cards">
+        <div class="overview-card" style="cursor: pointer;" onclick="window.location.href='{% url 'emergency_list' %}'">
+          <div class="title">📋 VER EMERGENCIAS</div>
+          <div class="value" style="color: #3b82f6;">→</div>
+          <div class="subtitle">Lista completa</div>
+        </div>
+        <div class="overview-card" style="cursor: pointer;" onclick="window.location.href='{% url 'create_emergency' %}'">
+          <div class="title">🚨 NUEVA EMERGENCIA</div>
+          <div class="value" style="color: #dc2626;">+</div>
+          <div class="subtitle">Reportar incidente</div>
+        </div>
+        <div class="overview-card" style="cursor: pointer;" onclick="window.location.href='{% url 'agentes_list' %}'">
+          <div class="title">👮 VER AGENTES</div>
+          <div class="value" style="color: #7c3aed;">→</div>
+          <div class="subtitle">Estado del personal</div>
+        </div>
+        <div class="overview-card" style="cursor: pointer;" onclick="window.location.href='{% url 'facilities_list' %}'">
+          <div class="title">🏢 INSTALACIONES</div>
+          <div class="value" style="color: #059669;">→</div>
+          <div class="subtitle">Red de recursos</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  
+  <!-- Timestamp de última actualización -->
+  <div class="last-update">
+    Última actualización: <span id="lastUpdate"></span>
+  </div>
+
+  <script>
+    // Actualizar timestamp
+    function updateTimestamp() {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('es-AR', { 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit' 
+      });
+      document.getElementById('lastUpdate').textContent = timeStr;
+    }
+    
+    // Auto-refresh cada 30 segundos
+    function autoRefresh() {
+      updateTimestamp();
+      setTimeout(() => {
+        location.reload();
+      }, 30000);
+    }
+    
+    // Añadir efectos de parpadeo a emergencias críticas
+    function addCriticalEffects() {
+      const rojoElement = document.querySelector('.priority-card.rojo .value');
+      const emergenciasActivas = document.querySelector('.overview-card .value[style*="color: #dc2626"]');
+      
+      if (rojoElement && parseInt(rojoElement.textContent) > 0) {
+        rojoElement.classList.add('critical-blink');
+      }
+      
+      if (emergenciasActivas && parseInt(emergenciasActivas.textContent) > 3) {
+        emergenciasActivas.classList.add('critical-blink');
+      }
+    }
+    
+    // Inicializar cuando se carga la página
+    document.addEventListener('DOMContentLoaded', function() {
+      updateTimestamp();
+      addCriticalEffects();
+      autoRefresh();
+    });
+  </script>
 {% endblock %}
