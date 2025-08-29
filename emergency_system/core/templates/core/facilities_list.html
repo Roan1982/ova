@@ -1,0 +1,43 @@
+{% extends 'core/base.html' %}
+{% block title %}Instalaciones{% endblock %}
+{% block extra_styles %}
+ table { width: 100%; border-collapse: collapse; }
+ th, td { border: 1px solid #1f2937; padding: 8px; }
+ th { background: #0b1220; }
+ .filters a { margin-right: 10px; }
+{% endblock %}
+{% block content %}
+  <h1>Instalaciones</h1>
+  <div class="filters" style="margin-bottom:12px;">
+    <a class="btn" href="{% url 'facilities_list' %}">Todas</a>
+    <a class="btn" href="{% url 'facilities_list' %}?tipo=comisaria">Comisarías</a>
+    <a class="btn" href="{% url 'facilities_list' %}?tipo=cuartel">Cuarteles</a>
+    <a class="btn" href="{% url 'facilities_list' %}?tipo=base_transito">Bases de Tránsito</a>
+  </div>
+  <div class="card"><div class="body">
+  <table>
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>Tipo</th>
+        <th>Fuerza</th>
+        <th>Dirección</th>
+        <th>Lat/Lon</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in facilities %}
+      <tr>
+        <td>{{ f.name }}</td>
+        <td>{{ f.get_kind_display }}</td>
+        <td>{% if f.force %}{{ f.force.name }}{% else %}-{% endif %}</td>
+        <td>{{ f.address }}</td>
+        <td>{% if f.lat and f.lon %}{{ f.lat }}, {{ f.lon }}{% else %}-{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5">No hay instalaciones cargadas.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div></div>
+{% endblock %}

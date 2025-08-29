@@ -1,120 +1,154 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Sistema de Emergencias - Inicio</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-    <style>
-        :root {
-            --bg: #0f172a;
-            --panel: #111827;
-            --text: #e5e7eb;
-            --muted: #9ca3af;
-            --primary: #10b981;
-            --primary-2: #34d399;
-            --accent: #4f46e5;
-            --danger: #ef4444;
-            --warning: #f59e0b;
-            --success: #22c55e;
-        }
-        * { box-sizing: border-box; }
-        body { margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; }
-        a { color: var(--primary-2); text-decoration: none; }
-        a:hover { text-decoration: underline; }
-        .navbar { display: flex; align-items: center; gap: 16px; padding: 14px 20px; background: #0b1220; border-bottom: 1px solid #1f2937; position: sticky; top: 0; z-index: 100; }
-        .brand { font-weight: 700; letter-spacing: .3px; color: #fff; }
-        .navlinks { display: flex; flex-wrap: wrap; gap: 12px; }
-        .navlinks a { color: var(--text); padding: 6px 10px; border-radius: 6px; border: 1px solid transparent; }
-        .navlinks a:hover { background: #0f1a33; border-color: #22314f; text-decoration: none; }
-        .container { padding: 16px 20px; max-width: 1200px; margin: 0 auto; }
-        .hero { display: grid; grid-template-columns: 1.2fr .8fr; gap: 16px; align-items: start; }
-        .card { background: var(--panel); border: 1px solid #1f2937; border-radius: 12px; }
-        .card h2 { margin: 0; padding: 14px 16px; border-bottom: 1px solid #1f2937; font-size: 18px; }
-        .card .body { padding: 14px 16px; }
-        #map { height: 520px; border-radius: 12px; }
-        .quick { display: grid; gap: 12px; }
-        .btn { display:inline-block; padding: 10px 12px; border-radius: 8px; border: 1px solid #22314f; background:#121a2b; color:#fff; text-decoration:none; }
-        .btn:hover { background:#0f1a33; }
-        .legend { display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size: 13px; color: var(--muted); }
-        .dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:6px; }
-        .dot.rojo { background: var(--danger); }
-        .dot.amarillo { background: var(--warning); }
-        .dot.verde { background: var(--success); }
-        .footer { padding: 16px 20px; color: var(--muted); font-size: 13px; text-align: center; }
-        @media (max-width: 900px){ .hero { grid-template-columns: 1fr; } }
-    </style>
-</head>
-<body>
-    <div class="navbar">
-        <div class="brand">Emergencias CABA</div>
-        <nav class="navlinks">
-            <a href="{% url 'dashboard' %}">Dashboard</a>
-            <a href="{% url 'agentes_list' %}">Agentes</a>
-            <a href="{% url 'unidades_por_fuerza' %}">Unidades</a>
-            <a href="{% url 'hospitales_list' %}">Hospitales</a>
-            <a href="{% url 'emergency_list' %}">Lista de Emergencias</a>
-            <a href="{% url 'create_emergency' %}">Reportar</a>
-            <a href="/admin/">Admin</a>
-        </nav>
+{% extends 'core/base.html' %}
+{% block title %}Inicio{% endblock %}
+{% block extra_head %}<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>{% endblock %}
+{% block extra_styles %}
+#map { height: 520px; border-radius: 12px; }
+.hero { display: grid; grid-template-columns: 1.2fr .8fr; gap: 16px; align-items: start; }
+.legend { display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size: 13px; color: var(--muted); }
+.dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:6px; }
+.dot.rojo { background: var(--danger); }
+.dot.amarillo { background: var(--warning); }
+.dot.verde { background: var(--success); }
+@media (max-width: 900px){ .hero { grid-template-columns: 1fr; } }
+{% endblock %}
+{% block content %}
+<div class="hero">
+  <div class="card" style="overflow:hidden;">
+    <h2>Mapa de Emergencias</h2>
+    <div class="body">
+      <div id="map"></div>
+      <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:13px; color: var(--muted);">
+        <span><span class="dot rojo"></span>Rojo</span>
+        <span><span class="dot amarillo"></span>Amarillo</span>
+        <span><span class="dot verde"></span>Verde</span>
+        <span style="margin-left:auto; color:#60a5fa;">Tráfico en tiempo real activo</span>
+        <button id="btn-redistribuir" class="btn" type="button">Redistribuir (simulado)</button>
+      </div>
     </div>
-
-    <div class="container">
-        <div class="hero">
-            <div class="card" style="overflow:hidden;">
-                <h2>Mapa de Emergencias</h2>
-                <div class="body">
-                    <div id="map"></div>
-                    <div style="margin-top:10px;" class="legend">
-                        <span><span class="dot rojo"></span>Rojo</span>
-                        <span><span class="dot amarillo"></span>Amarillo</span>
-                        <span><span class="dot verde"></span>Verde</span>
-                        <span style="margin-left:auto; color:#60a5fa;">Tráfico en tiempo real activo</span>
-                    </div>
-                </div>
-            </div>
-            <div class="card">
-                <h2>Acciones Rápidas</h2>
-                <div class="body quick">
-                    <a class="btn" href="{% url 'create_emergency' %}">Reportar nueva emergencia</a>
-                    <a class="btn" href="{% url 'emergency_list' %}">Ver lista de emergencias</a>
-                    <a class="btn" href="{% url 'dashboard' %}">Abrir dashboard</a>
-                    <a class="btn" href="{% url 'agentes_list' %}">Ver agentes</a>
-                    <a class="btn" href="{% url 'unidades_por_fuerza' %}">Ver unidades</a>
-                    <a class="btn" href="{% url 'hospitales_list' %}">Ver hospitales</a>
-                </div>
-            </div>
-        </div>
+  </div>
+  <div class="card">
+    <h2>Acciones Rápidas</h2>
+    <div class="body" style="display:grid; gap:12px;">
+      <a class="btn" href="{% url 'create_emergency' %}">Reportar nueva emergencia</a>
+      <a class="btn" href="{% url 'emergency_list' %}">Ver lista de emergencias</a>
+      <a class="btn" href="{% url 'dashboard' %}">Abrir dashboard</a>
+      <a class="btn" href="{% url 'agentes_list' %}">Ver agentes</a>
+      <a class="btn" href="{% url 'unidades_por_fuerza' %}">Ver unidades</a>
+      <a class="btn" href="{% url 'hospitales_list' %}">Ver hospitales</a>
     </div>
+  </div>
+</div>
 
-    {% load l10n %}
-    <script>
-        var map = L.map('map').setView([-34.6037, -58.3816], 12);  // Centrado en CABA
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+{% load l10n %}
+<script>
+  var map = L.map('map').setView([-34.6037, -58.3816], 12);  // Centrado en CABA
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        // Capa de tráfico en tiempo real (TomTom). Reemplaza YOUR_TOMTOM_API_KEY con tu clave.
-        var trafficLayer = L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative/{z}/{x}/{y}.png?key=YOUR_TOMTOM_API_KEY', {
-            attribution: '&copy; TomTom',
-            opacity: 0.7
-        }).addTo(map);
+  // Capa de tráfico en tiempo real (TomTom). Reemplaza YOUR_TOMTOM_API_KEY con tu clave.
+  var trafficLayer = L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative/{z}/{x}/{y}.png?key=YOUR_TOMTOM_API_KEY', {
+      attribution: '&copy; TomTom',
+      opacity: 0.7
+  }).addTo(map);
 
-        // Marcadores de emergencias
-        {% for emergency in emergencies %}
-            {% if emergency.location_lat and emergency.location_lon %}
-                var popup = `
-                    <strong>{{ emergency.code|upper }}</strong> - {{ emergency.description|escapejs }}<br/>
-                    {{ emergency.address|default:""|escapejs }}
-                    {% if emergency.onda_verde %}<br/><span style="color:#f87171;">Onda Verde ACTIVADA</span>{% endif %}
-                `;
-                L.marker([{{ emergency.location_lat|unlocalize }}, {{ emergency.location_lon|unlocalize }}]).addTo(map)
-                    .bindPopup(popup);
-            {% endif %}
-        {% endfor %}
-    </script>
+  // Marcadores de emergencias
+  {% for emergency in emergencies %}
+    {% if emergency.location_lat and emergency.location_lon %}
+      var popup = `
+        <strong>{{ emergency.code|upper }}</strong> - {{ emergency.description|escapejs }}<br/>
+        {{ emergency.address|default:""|escapejs }}
+        {% if emergency.onda_verde %}<br/><span style="color:#f87171;">Onda Verde ACTIVADA</span>{% endif %}
+      `;
+      L.marker([{{ emergency.location_lat|unlocalize }}, {{ emergency.location_lon|unlocalize }}]).addTo(map)
+        .bindPopup(popup);
+    {% endif %}
+  {% endfor %}
 
-    <div class="footer">
-        Gobierno de la Ciudad - Sistema de Emergencias (Demo) · {{ now|date:"d/m/Y H:i" }}
-    </div>
-</body>
-</html>
+  // Instalaciones (comisarías, cuarteles, tránsito)
+  {% for f in facilities %}
+    {% if f.lat and f.lon %}
+      var iconColor = '#60a5fa'; // comisarías
+      {% if f.kind == 'cuartel' %} iconColor = '#f87171'; {% endif %}
+      {% if f.kind == 'base_transito' %} iconColor = '#22c55e'; {% endif %}
+      var facilityMarker = L.circleMarker([{{ f.lat|unlocalize }}, {{ f.lon|unlocalize }}], {
+        radius: 6, color: iconColor, fillColor: iconColor, fillOpacity: 0.9
+      }).addTo(map);
+      facilityMarker.bindPopup(`{{ f.name|escapejs }}<br/>{{ f.get_kind_display|escapejs }}<br/>{{ f.address|default:""|escapejs }}`);
+    {% endif %}
+  {% endfor %}
+
+  // Agentes en campo (con movimiento simulado)
+  const agentMarkers = [];
+  const agentData = [
+    {% for a in agents %}
+      {% if a.lat and a.lon %}
+      {
+        id: {{ a.id }},
+        name: "{{ a.name|escapejs }}",
+        force: "{{ a.force.name|escapejs }}",
+        role: "{{ a.role|default:''|escapejs }}",
+        status: "{{ a.status|escapejs }}",
+        lat: {{ a.lat|unlocalize }},
+        lon: {{ a.lon|unlocalize }}
+      },
+      {% endif %}
+    {% endfor %}
+  ];
+
+  function colorForForce(f){
+    if (f === 'Policía') return '#60a5fa';
+    if (f === 'Tránsito') return '#22c55e';
+    if (f === 'SAME') return '#e5e7eb';
+    if (f === 'Bomberos') return '#f87171';
+    return '#93c5fd';
+  }
+
+  function addOrUpdateAgents(){
+    // Si todavía no hay marcadores, crearlos con una pequeña dispersión inicial
+    if (agentMarkers.length === 0){
+      agentData.forEach(a => {
+        const acolor = colorForForce(a.force);
+        // dispersión inicial adicional de ~400m
+        const jitter = 0.004 * (Math.random() - 0.5);
+        const jitter2 = 0.004 * (Math.random() - 0.5);
+        a.lat = a.lat + jitter;
+        a.lon = a.lon + jitter2;
+        const m = L.circleMarker([a.lat, a.lon], { radius: 4, color: acolor, fillColor: acolor, fillOpacity: 0.9 });
+        m.bindPopup(`${a.name}<br/>${a.force} - ${a.role}<br/>Estado: ${a.status}`);
+        m.addTo(map);
+        agentMarkers.push(m);
+      });
+    } else {
+      // movimiento simulado: pequeño paso aleatorio con límites globales de CABA (no dependientes del zoom)
+      const CABA = { minLat: -34.72, maxLat: -34.52, minLon: -58.55, maxLon: -58.30 };
+      agentData.forEach((a, idx) => {
+        // paso base ~30-60m
+        const step = (Math.random()*0.001 - 0.0005);
+        const step2 = (Math.random()*0.001 - 0.0005);
+        a.lat += step;
+        a.lon += step2;
+        // Mantener dentro de CABA (clamp con ligero ruido para no quedar en el borde exacto)
+        if (a.lat < CABA.minLat) a.lat = CABA.minLat + Math.random()*0.002;
+        if (a.lat > CABA.maxLat) a.lat = CABA.maxLat - Math.random()*0.002;
+        if (a.lon < CABA.minLon) a.lon = CABA.minLon + Math.random()*0.002;
+        if (a.lon > CABA.maxLon) a.lon = CABA.maxLon - Math.random()*0.002;
+        agentMarkers[idx].setLatLng([a.lat, a.lon]);
+      });
+    }
+  }
+
+  addOrUpdateAgents();
+  // Actualizar cada 5s
+  setInterval(addOrUpdateAgents, 5000);
+
+  // Redistribución (simulada) para evitar agrupamientos
+  document.getElementById('btn-redistribuir').addEventListener('click', ()=>{
+    // Redistribuir dentro de los límites globales de CABA, no del viewport
+    const CABA = { minLat: -34.72, maxLat: -34.52, minLon: -58.55, maxLon: -58.30 };
+    agentData.forEach((a, idx) => {
+      a.lat = CABA.minLat + Math.random() * (CABA.maxLat - CABA.minLat);
+      a.lon = CABA.minLon + Math.random() * (CABA.maxLon - CABA.minLon);
+      agentMarkers[idx].setLatLng([a.lat, a.lon]);
+    });
+  });
+</script>
+{% endblock %}

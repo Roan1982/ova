@@ -5,13 +5,20 @@ import math
 import requests
 from django.db import models
 from django.db.models import Count, Q
-from .models import Emergency, Force, Vehicle, Agent, Hospital, EmergencyDispatch
+from .models import Emergency, Force, Vehicle, Agent, Hospital, EmergencyDispatch, Facility
 from .forms import EmergencyForm
 from .llm import classify_with_ollama
 
 def home(request):
     emergencies = Emergency.objects.all()
-    return render(request, 'core/home.html', {'emergencies': emergencies})
+    facilities = Facility.objects.all()
+    agents = Agent.objects.exclude(lat__isnull=True).exclude(lon__isnull=True).select_related('force')
+    ctx = {
+        'emergencies': emergencies,
+        'facilities': facilities,
+        'agents': agents,
+    }
+    return render(request, 'core/home.html', ctx)
 
 def create_emergency(request):
     if request.method == 'POST':
@@ -195,6 +202,14 @@ def unidades_por_fuerza(request):
 def hospitales_list(request):
     hospitales = Hospital.objects.all().order_by('name')
     return render(request, 'core/hospitales_list.html', {'hospitales': hospitales})
+
+
+def facilities_list(request):
+    kind = request.GET.get('tipo')
+    qs = Facility.objects.all().select_related('force').order_by('kind', 'name')
+    if kind in ['comisaria', 'cuartel', 'base_transito']:
+        qs = qs.filter(kind=kind)
+    return render(request, 'core/facilities_list.html', {'facilities': qs, 'kind': kind})
 
 
 # Dashboard

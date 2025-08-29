@@ -21,6 +21,11 @@ class Vehicle(models.Model):
     type = models.CharField(max_length=100, verbose_name='Tipo')  # e.g., 'Ambulancia', 'Camión de Bomberos', 'Patrulla', 'Moto de Tránsito'
     current_lat = models.FloatField(null=True, blank=True, verbose_name='Latitud Actual')
     current_lon = models.FloatField(null=True, blank=True, verbose_name='Longitud Actual')
+    # Objetivo para simulación o IA
+    target_lat = models.FloatField(null=True, blank=True, verbose_name='Latitud Objetivo')
+    target_lon = models.FloatField(null=True, blank=True, verbose_name='Longitud Objetivo')
+    # Base de origen (instalación)
+    home_facility = models.ForeignKey('Facility', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Base')
     status = models.CharField(max_length=50, choices=[('disponible', 'Disponible'), ('en_ruta', 'En Ruta'), ('ocupado', 'Ocupado') ], default='disponible', verbose_name='Estado')
 
     def __str__(self):
@@ -218,6 +223,14 @@ class Agent(models.Model):
     role = models.CharField(max_length=100, verbose_name='Rol/Cargo', blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='disponible', verbose_name='Estado')
     assigned_vehicle = models.ForeignKey(Vehicle, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Vehículo Asignado')
+    # Posición actual
+    lat = models.FloatField(null=True, blank=True, verbose_name='Latitud')
+    lon = models.FloatField(null=True, blank=True, verbose_name='Longitud')
+    # Objetivo para simulación o IA
+    target_lat = models.FloatField(null=True, blank=True, verbose_name='Latitud Objetivo')
+    target_lon = models.FloatField(null=True, blank=True, verbose_name='Longitud Objetivo')
+    # Base de origen
+    home_facility = models.ForeignKey('Facility', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Base')
     created_at = models.DateTimeField(default=timezone.now, verbose_name='Creado en')
 
     class Meta:
@@ -232,6 +245,8 @@ class Hospital(models.Model):
     address = models.CharField(max_length=255, verbose_name='Dirección', blank=True)
     total_beds = models.PositiveIntegerField(verbose_name='Camas Totales', default=0)
     occupied_beds = models.PositiveIntegerField(verbose_name='Camas Ocupadas', default=0)
+    lat = models.FloatField(null=True, blank=True, verbose_name='Latitud')
+    lon = models.FloatField(null=True, blank=True, verbose_name='Longitud')
     created_at = models.DateTimeField(default=timezone.now, verbose_name='Creado en')
 
     class Meta:
@@ -246,3 +261,34 @@ class Hospital(models.Model):
         if self.occupied_beds > self.total_beds:
             return 0
         return self.total_beds - self.occupied_beds
+
+class Facility(models.Model):
+    KIND_CHOICES = [
+        ('comisaria', 'Comisaría'),
+        ('cuartel', 'Cuartel de Bomberos'),
+        ('base_transito', 'Base de Tránsito'),
+    ]
+    name = models.CharField(max_length=200, verbose_name='Nombre')
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES, verbose_name='Tipo')
+    force = models.ForeignKey(Force, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Fuerza')
+    address = models.CharField(max_length=255, verbose_name='Dirección', blank=True)
+    lat = models.FloatField(null=True, blank=True, verbose_name='Latitud')
+    lon = models.FloatField(null=True, blank=True, verbose_name='Longitud')
+    created_at = models.DateTimeField(default=timezone.now, verbose_name='Creado en')
+
+    class Meta:
+        verbose_name = 'Instalación'
+        verbose_name_plural = 'Instalaciones'
+
+    def __str__(self):
+        return f"{self.name} ({self.get_kind_display()})"
+
+    # Utilidades
+    def vehicles(self):
+        return Vehicle.objects.filter(home_facility=self)
+
+    def vehicles_count(self):
+        return self.vehicles().count()
+
+    def vehicles_by_type(self):
+        return self.vehicles().values('type').annotate(total=models.Count('id')).order_by('type')

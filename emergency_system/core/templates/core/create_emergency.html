@@ -8,6 +8,10 @@
         {% csrf_token %}
         <div class="card">
           <div class="body">
+            <p>
+              <label for="autocomplete">Dirección (buscar):</label><br>
+              <input id="autocomplete" type="text" placeholder="Escribí una dirección..." style="width:100%; padding:8px; border-radius:6px; border:1px solid #334155; background:#0b1220; color:#e5e7eb;">
+            </p>
             {{ form.as_p }}
             <input type="hidden" name="location_lat" id="id_location_lat">
             <input type="hidden" name="location_lon" id="id_location_lon">
@@ -21,21 +25,77 @@
     var map = L.map('map').setView([-34.6037, -58.3816], 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    var marker;
+    let marker;
+
+    async function reverseGeocode(lat, lon){
+        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
+        const response = await fetch(url, { headers: { 'User-Agent': 'emergency_app/1.0' } });
+        const data = await response.json();
+        return data && data.display_name ? data.display_name : '';
+    }
+
+    async function forwardGeocode(q){
+        const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(q + ', CABA, Argentina')}`;
+        const response = await fetch(url, { headers: { 'User-Agent': 'emergency_app/1.0' } });
+        const data = await response.json();
+        return Array.isArray(data) ? data : [];
+    }
+
     map.on('click', async function(e) {
         if (marker) map.removeLayer(marker);
         marker = L.marker(e.latlng).addTo(map);
-
         document.getElementById('id_location_lat').value = e.latlng.lat;
         document.getElementById('id_location_lon').value = e.latlng.lng;
+        const addr = await reverseGeocode(e.latlng.lat, e.latlng.lng);
+        if (addr) document.getElementById('id_address').value = addr;
+    });
 
-        // Reverse geocode to get address
-        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${e.latlng.lat}&lon=${e.latlng.lng}`;
-        const response = await fetch(url, { headers: { 'User-Agent': 'emergency_app/1.0' } });
-        const data = await response.json();
-        if (data && data.display_name) {
-            document.getElementById('id_address').value = data.display_name;
-        }
+    // Autocomplete simple con Nominatim
+    const acInput = document.getElementById('autocomplete');
+    let acTimer = null;
+    let acList = null;
+
+    function ensureList(){
+      if (!acList){
+        acList = document.createElement('div');
+        acList.style.position = 'absolute';
+        acList.style.background = '#0b1220';
+        acList.style.border = '1px solid #334155';
+        acList.style.borderRadius = '6px';
+        acList.style.marginTop = '4px';
+        acList.style.zIndex = '1000';
+        acInput.parentNode.appendChild(acList);
+      }
+    }
+
+    acInput.addEventListener('input', function(){
+      const q = acInput.value.trim();
+      if (acTimer) clearTimeout(acTimer);
+      if (!q){ if(acList) acList.innerHTML=''; return; }
+      acTimer = setTimeout(async ()=>{
+        ensureList();
+        const results = await forwardGeocode(q);
+        acList.innerHTML = '';
+        results.forEach(r => {
+          const item = document.createElement('div');
+          item.textContent = r.display_name;
+          item.style.padding = '8px';
+          item.style.cursor = 'pointer';
+          item.addEventListener('mouseenter', ()=> item.style.background = '#0f1a33');
+          item.addEventListener('mouseleave', ()=> item.style.background = 'transparent');
+          item.onclick = ()=>{
+            acInput.value = r.display_name;
+            document.getElementById('id_address').value = r.display_name;
+            document.getElementById('id_location_lat').value = r.lat;
+            document.getElementById('id_location_lon').value = r.lon;
+            if (marker) map.removeLayer(marker);
+            marker = L.marker([r.lat, r.lon]).addTo(map);
+            map.setView([r.lat, r.lon], 15);
+            acList.innerHTML = '';
+          };
+          acList.appendChild(item);
+        });
+      }, 300);
     });
 </script>
 {% endblock %}

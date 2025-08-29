@@ -45,11 +45,12 @@
 </head>
 <body>
     <div class="navbar">
-        <div class="brand">Emergencias CABA</div>
+        <div class="brand">OVA CABA</div>
         <nav class="navlinks">
             <a href="{% url 'dashboard' %}">Dashboard</a>
             <a href="{% url 'agentes_list' %}">Agentes</a>
             <a href="{% url 'unidades_por_fuerza' %}">Unidades</a>
+            <a href="{% url 'facilities_list' %}">Instalaciones</a>
             <a href="{% url 'hospitales_list' %}">Hospitales</a>
             <a href="{% url 'emergency_list' %}">Emergencias</a>
             <a href="{% url 'create_emergency' %}">Reportar</a>
@@ -63,7 +64,7 @@
     </div>
 
     <div class="footer">
-        Gobierno de la Ciudad - Sistema de Emergencias (Demo) · {{ now|date:"d/m/Y H:i" }}
+        OVA Onda Verde Automatizada · {{ now|date:"d/m/Y H:i" }}
     </div>
 
     {% block extra_scripts %}{% endblock %}
