@@ -117,26 +117,11 @@ class RouteOptimizer:
     def get_route_osrm(self, start_coords: Tuple[float, float], 
                       end_coords: Tuple[float, float]) -> Optional[Dict]:
         """
-        Obtiene ruta usando OSRM (Open Source Routing Machine) - servicio gratuito
+        Obtiene ruta usando OSRM - DESHABILITADO para evitar timeouts
         """
-        url = f"http://router.project-osrm.org/route/v1/driving/{start_coords[1]},{start_coords[0]};{end_coords[1]},{end_coords[0]}"
-        
-        params = {
-            'overview': 'full',
-            'geometries': 'geojson',
-            'steps': 'true'
-        }
-        
-        try:
-            response = requests.get(url, params=params, timeout=10)
-            if response.status_code == 200:
-                return response.json()
-            else:
-                logger.error(f"OSRM API error: {response.status_code}")
-                return None
-        except requests.RequestException as e:
-            logger.error(f"Error conectando con OSRM API: {e}")
-            return None
+        # DESHABILITADO TEMPORALMENTE - causaba timeouts
+        logger.info("OSRM deshabilitado para evitar timeouts - usando cálculo directo")
+        return None
 
     def get_best_route(self, start_coords: Tuple[float, float], 
                       end_coords: Tuple[float, float]) -> Dict:
@@ -168,20 +153,29 @@ class RouteOptimizer:
                 'steps': feature['properties']['segments'][0].get('steps', [])
             }
         
-        # Si todo falla, calcular ruta directa
+        # Si todo falla, calcular ruta directa MEJORADA
         distance = self.calculate_distance(start_coords[0], start_coords[1], 
                                          end_coords[0], end_coords[1])
-        estimated_duration = distance / 50 * 3.6  # Asumiendo 50 km/h promedio
+        estimated_duration = (distance / 1000) / 25 * 60 * 60  # 25 km/h promedio en ciudad, resultado en segundos
+        
+        # Generar ruta con puntos intermedios para mayor realismo
+        intermediate_points = self._generate_intermediate_points(
+            start_coords[0], start_coords[1], end_coords[0], end_coords[1]
+        )
+        
+        coordinates = [[start_coords[1], start_coords[0]]]  # [lon, lat]
+        for point in intermediate_points:
+            coordinates.append([point[1], point[0]])  # [lon, lat]
+        coordinates.append([end_coords[1], end_coords[0]])
+        
+        logger.info(f"✓ Ruta directa calculada: {distance/1000:.1f}km en {estimated_duration/60:.1f} min con {len(coordinates)} puntos")
         
         return {
             'provider': 'Direct',
             'route': None,
             'geometry': {
                 'type': 'LineString',
-                'coordinates': [
-                    [start_coords[1], start_coords[0]],
-                    [end_coords[1], end_coords[0]]
-                ]
+                'coordinates': coordinates
             },
             'distance': distance,
             'duration': estimated_duration,
@@ -237,6 +231,36 @@ class RouteOptimizer:
             
         return base_score
 
+    def _generate_intermediate_points(self, start_lat: float, start_lon: float, 
+                                    end_lat: float, end_lon: float) -> List[Tuple[float, float]]:
+        """
+        Genera puntos intermedios para hacer la ruta más realista
+        """
+        points = []
+        
+        # Crear 2-3 puntos intermedios según la distancia
+        distance = self.calculate_distance(start_lat, start_lon, end_lat, end_lon) / 1000  # km
+        
+        if distance > 1.0:  # Más de 1km, agregar puntos intermedios
+            import random
+            num_points = min(3, int(distance))  # Máximo 3 puntos intermedios
+            
+            for i in range(1, num_points + 1):
+                # Interpolación con pequeña variación para simular calles
+                ratio = i / (num_points + 1)
+                
+                mid_lat = start_lat + (end_lat - start_lat) * ratio
+                mid_lon = start_lon + (end_lon - start_lon) * ratio
+                
+                # Agregar pequeña variación aleatoria para simular calles reales
+                variation = 0.001  # ~100 metros
+                mid_lat += (random.random() - 0.5) * variation
+                mid_lon += (random.random() - 0.5) * variation
+                
+                points.append((mid_lat, mid_lon))
+        
+        return points
+
 def get_route_optimizer():
     """Factory function para obtener instancia del optimizador"""
     return RouteOptimizer()
@@ -245,6 +269,7 @@ def get_route_optimizer():
 def calculate_emergency_routes(emergency):
     """
     Calcula rutas optimizadas para una emergencia específica
+    SOLO devuelve las mejores 3-5 rutas más relevantes
     """
     from .models import Vehicle, Agent  # Import aquí para evitar circular imports
     
@@ -254,37 +279,163 @@ def calculate_emergency_routes(emergency):
     optimizer = get_route_optimizer()
     emergency_coords = (emergency.location_lat, emergency.location_lon)
     
-    # Obtener recursos disponibles
+    # Obtener recursos disponibles FILTRADOS por tipo de emergencia Y fuerza asignada
     available_resources = []
+    emergency_type = getattr(emergency, 'type', '').lower()
+    emergency_code = getattr(emergency, 'code', '').lower()
+    assigned_force = getattr(emergency, 'assigned_force', None)
     
-    # Vehículos disponibles
-    for vehicle in Vehicle.objects.filter(status='disponible').select_related('force'):
+    # PRIORIZAR la fuerza asignada por la IA, luego por tipo de emergencia
+    resource_priority = {}
+    
+    if assigned_force:
+        # Prioridad alta para la fuerza asignada por IA
+        assigned_force_name = assigned_force.name.lower()
+        print(f"🎯 Fuerza asignada por IA: {assigned_force.name}")
+        resource_priority[assigned_force_name] = 5  # Prioridad máxima
+        
+        # Prioridades secundarias basadas en la fuerza asignada
+        if assigned_force_name == 'same':
+            resource_priority.update({'ambulancia': 4, 'policia': 1, 'bomberos': 1})
+        elif assigned_force_name == 'policía':
+            resource_priority.update({'patrulla': 4, 'policia': 4, 'same': 1, 'bomberos': 1})
+        elif assigned_force_name == 'bomberos':
+            resource_priority.update({'bomberos': 4, 'camion': 4, 'policia': 1, 'same': 1})
+        else:
+            resource_priority.update({'policia': 2, 'same': 2, 'bomberos': 2})
+    else:
+        # Fallback: priorizar por código de emergencia si no hay fuerza asignada
+        if emergency_code == 'rojo':
+            resource_priority = {'same': 4, 'ambulancia': 4, 'policia': 2, 'bomberos': 2}
+        elif 'incendio' in emergency_type or 'fuego' in emergency_type:
+            resource_priority = {'bomberos': 4, 'camion': 4, 'policia': 1, 'same': 1}
+        elif 'robo' in emergency_type or 'violencia' in emergency_type:
+            resource_priority = {'policia': 4, 'patrulla': 3, 'same': 1, 'bomberos': 1}
+        else:
+            resource_priority = {'policia': 2, 'same': 2, 'bomberos': 2}
+    
+    # Vehículos disponibles (limitados por relevancia) - MÁXIMO 5 para optimizar
+    vehicle_count = 0
+    print(f"🚗 DEBUG: Buscando vehículos para fuerza asignada: {assigned_force.name if assigned_force else 'NINGUNA'}")
+    
+    # IMPORTANTE: También buscar vehículos con status 'en_ruta' para emergencias de Policía
+    status_list = ['disponible']
+    if assigned_force and assigned_force.name.lower() == 'policía':
+        status_list.extend(['en_ruta', 'ocupado'])  # Incluir todos los estados para Policía
+        print(f"🔍 DEBUG: Buscando Policía en status: {status_list}")
+    
+    for vehicle in Vehicle.objects.filter(status__in=status_list).select_related('force'):
+        if vehicle_count >= 10:  # Aumentar límite para encontrar Policía
+            break
+            
         if vehicle.current_lat and vehicle.current_lon:
-            available_resources.append({
-                'id': f'vehicle_{vehicle.id}',
-                'type': vehicle.type.lower(),
-                'name': f"{vehicle.type} - {vehicle.force.name}",
-                'lat': vehicle.current_lat,
-                'lon': vehicle.current_lon,
-                'resource_type': 'vehicle',
-                'resource_obj': vehicle
-            })
+            vehicle_type = vehicle.type.lower()
+            force_name = vehicle.force.name.lower() if hasattr(vehicle, 'force') and vehicle.force else 'general'
+            
+            print(f"🔍 DEBUG: Vehículo {vehicle.type} - Fuerza: {force_name}, Status: {vehicle.status}, Prioridad: {resource_priority.get(force_name, 0)}")
+            
+            # Solo incluir si es relevante para esta emergencia
+            priority_multiplier = resource_priority.get(force_name, 0) + resource_priority.get(vehicle_type, 0)
+            if priority_multiplier > 0:
+                available_resources.append({
+                    'id': f'vehicle_{vehicle.id}',
+                    'type': vehicle_type,
+                    'name': f"{vehicle.type} - {vehicle.force.name}",
+                    'lat': vehicle.current_lat,
+                    'lon': vehicle.current_lon,
+                    'resource_type': 'vehicle',
+                    'resource_obj': vehicle,
+                    'priority_multiplier': priority_multiplier
+                })
+                vehicle_count += 1
+                print(f"✅ AGREGADO: {vehicle.type} - {vehicle.force.name} (multiplier: {priority_multiplier})")
+            else:
+                print(f"❌ DESCARTADO: {vehicle.type} - {vehicle.force.name} (multiplier: {priority_multiplier})")
     
-    # Agentes disponibles
+    # Agentes disponibles (limitados por relevancia) - MÁXIMO 5 para optimizar  
+    agent_count = 0
     for agent in Agent.objects.filter(status='disponible').select_related('force'):
+        if agent_count >= 5:  # Máximo 5 agentes para evitar sobrecarga
+            break
+            
         if agent.lat and agent.lon:
-            available_resources.append({
-                'id': f'agent_{agent.id}',
-                'type': agent.force.name.lower(),
-                'name': f"{agent.name} - {agent.force.name}",
-                'lat': agent.lat,
-                'lon': agent.lon,
-                'resource_type': 'agent',
-                'resource_obj': agent
-            })
+            force_name = agent.force.name.lower() if hasattr(agent, 'force') and agent.force else 'general'
+            
+            # Solo incluir si es relevante para esta emergencia
+            priority_multiplier = resource_priority.get(force_name, 0)
+            if priority_multiplier > 0:
+                available_resources.append({
+                    'id': f'agent_{agent.id}',
+                    'type': force_name,
+                    'name': f"{agent.name} - {agent.force.name}",
+                    'lat': agent.lat,
+                    'lon': agent.lon,
+                    'resource_type': 'agent',
+                    'resource_obj': agent,
+                    'priority_multiplier': priority_multiplier
+                })
+                agent_count += 1
     
-    # Calcular rutas optimizadas
-    return optimizer.find_optimal_assignments(emergency_coords, available_resources)
+    # Calcular rutas optimizadas y devolver solo las mejores 5
+    assignments = optimizer.find_optimal_assignments(emergency_coords, available_resources)
+    
+    # Aplicar prioridad adicional basada en el tipo de recurso y fuerza asignada
+    for assignment in assignments:
+        resource = assignment.get('resource', {})
+        multiplier = resource.get('priority_multiplier', 1)
+        
+        # DEBUG: Agregar información de debug
+        resource_obj = resource.get('resource_obj')
+        resource_name = resource.get('name', 'Unknown')
+        
+        # Obtener la fuerza del recurso
+        resource_force = None
+        if resource_obj and hasattr(resource_obj, 'force') and resource_obj.force:
+            resource_force = resource_obj.force.name.lower()
+            print(f"🔍 DEBUG: Recurso {resource_name}, Fuerza: {resource_force}")
+        elif resource.get('resource_type') == 'agent':
+            # Para agentes, el type ya es la fuerza
+            resource_force = resource.get('type', '').lower()
+            print(f"🔍 DEBUG: Agente {resource_name}, Fuerza: {resource_force}")
+        else:
+            print(f"🔍 DEBUG: Recurso {resource_name}, SIN FUERZA detectada")
+        
+        # Si es la fuerza asignada, priorizar por distancia (menor es mejor)
+        if assigned_force and resource_force == assigned_force.name.lower():
+            assignment['priority_score'] = assignment.get('distance_km', 999)  # Priorizar por distancia
+            assignment['is_assigned_force'] = True
+            print(f"✅ MATCH: {resource_name} - Fuerza {resource_force} coincide con {assigned_force.name.lower()}")
+        else:
+            assignment['priority_score'] = assignment.get('priority_score', 999) / max(multiplier, 0.1)
+            assignment['is_assigned_force'] = False
+            if assigned_force:
+                print(f"❌ NO MATCH: {resource_name} - Fuerza {resource_force} NO coincide con {assigned_force.name.lower()}")
+            else:
+                print(f"⚪ SIN FUERZA ASIGNADA: {resource_name}")
+    
+    # Reordenar: primero los de fuerza asignada por distancia, luego por score
+    assignments = sorted(assignments, key=lambda x: (
+        not x.get('is_assigned_force', False),  # Primero los de fuerza asignada
+        x['priority_score']  # Luego por score/distancia
+    ))[:3]
+    
+    # Agregar información adicional para debug
+    for i, assignment in enumerate(assignments):
+        assignment['ranking'] = i + 1
+        assignment['selection_reason'] = (
+            f"Posición #{i+1}: Tiempo {assignment['estimated_arrival']:.1f}min, "
+            f"Distancia {assignment['distance_km']:.1f}km, "
+            f"Score final {assignment['priority_score']:.1f}"
+        )
+    
+    print(f"✓ FILTRADO: Devolviendo {len(assignments)} rutas optimizadas para emergencia tipo: {emergency_type}")
+    print(f"   Fuerza asignada: {assigned_force.name if assigned_force else 'NINGUNA'}")
+    for i, assignment in enumerate(assignments):
+        resource = assignment['resource']
+        force_match = "✅" if assignment.get('is_assigned_force') else "⚠️" 
+        print(f"  #{i+1} {force_match} {resource['name']}: {assignment['estimated_arrival']:.1f}min, {assignment['distance_km']:.1f}km, score={assignment['priority_score']:.1f}")
+    
+    return assignments
 
 def get_real_time_eta(start_coords: Tuple[float, float], 
                      end_coords: Tuple[float, float]) -> Dict:

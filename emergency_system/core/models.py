@@ -179,6 +179,7 @@ class Emergency(models.Model):
     def resolve(self, notes=''):
         self.status = 'resuelta'
         self.resolved_at = timezone.now()
+        
         # Liberar vehículos despachados
         for d in EmergencyDispatch.objects.filter(emergency=self):
             if d.vehicle:
@@ -186,10 +187,52 @@ class Emergency(models.Model):
                 d.vehicle.save()
             d.status = 'finalizado'
             d.save()
+        
+        # Marcar todas las rutas calculadas como completadas
+        from django.utils import timezone as django_timezone
+        updated_routes = CalculatedRoute.objects.filter(emergency=self, status='activa').update(
+            status='completada',
+            completed_at=django_timezone.now()
+        )
+        
+        if updated_routes > 0:
+            print(f"✅ Marcadas {updated_routes} rutas como completadas para emergencia {self.id}")
+        
         # Agregar notas de resolución al informe
         if notes:
             self.resolution_notes = (self.resolution_notes or '') + f"\nResolución: {notes}"
         self.save(update_fields=['status', 'resolved_at', 'resolution_notes'])
+
+
+class CalculatedRoute(models.Model):
+    """
+    Modelo para guardar las rutas calculadas para cada emergencia
+    """
+    ROUTE_STATUS_CHOICES = [
+        ('activa', 'Activa'),
+        ('completada', 'Completada'),
+        ('cancelada', 'Cancelada'),
+    ]
+    
+    emergency = models.ForeignKey(Emergency, on_delete=models.CASCADE, related_name='calculated_routes', verbose_name='Emergencia')
+    resource_id = models.CharField(max_length=50, verbose_name='ID del Recurso')  # vehicle_123 o agent_456
+    resource_type = models.CharField(max_length=100, verbose_name='Tipo de Recurso')  # "Ambulancia - SAME"
+    distance_km = models.FloatField(verbose_name='Distancia (km)')
+    estimated_time_minutes = models.FloatField(verbose_name='Tiempo Estimado (min)')
+    priority_score = models.FloatField(verbose_name='Puntuación de Prioridad')
+    route_geometry = models.JSONField(verbose_name='Geometría de la Ruta')  # GeoJSON de la ruta
+    status = models.CharField(max_length=20, choices=ROUTE_STATUS_CHOICES, default='activa', verbose_name='Estado')
+    calculated_at = models.DateTimeField(default=timezone.now, verbose_name='Calculado en')
+    completed_at = models.DateTimeField(null=True, blank=True, verbose_name='Completado en')
+    
+    class Meta:
+        verbose_name = 'Ruta Calculada'
+        verbose_name_plural = 'Rutas Calculadas'
+        ordering = ['priority_score', 'distance_km']  # Ordenar por mejor ruta primero
+    
+    def __str__(self):
+        return f"Ruta {self.resource_type} → Emergencia {self.emergency_id} ({self.distance_km:.1f}km, {self.estimated_time_minutes:.1f}min)"
+
 
 class EmergencyDispatch(models.Model):
     STATUS_CHOICES = [

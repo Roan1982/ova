@@ -44,6 +44,29 @@
   filter: drop-shadow(0 0 10px #60a5fa);
 }
 
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.notification-toast {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.route-popup {
+  min-width: 250px;
+}
+
+.route-popup .btn {
+  margin: 2px;
+}
+
 @keyframes emergency-pulse {
   0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
   70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
@@ -141,6 +164,7 @@
         <button class="map-btn" id="btn-centrar" style="font-size: 11px; padding: 4px 8px;">🎯</button>
         <button class="map-btn" id="btn-limpiar-rutas" style="font-size: 11px; padding: 4px 8px;">🧹</button>
         <button class="map-btn" id="btn-redistribuir" style="font-size: 11px; padding: 4px 8px;">🔄</button>
+        <button class="map-btn" id="btn-test-routes" style="font-size: 11px; padding: 4px 8px;">🔍</button>
       </div>
     </div>
     
@@ -341,7 +365,16 @@
         color: getEmergencyColor('{{ emergency.code }}'),
         fillColor: getEmergencyColor('{{ emergency.code }}'),
         fillOpacity: 0.8,
-        weight: 2
+        weight: 2,
+        emergencyId: {{ emergency.id }}, // Agregar ID para identificación
+        emergency: {
+          id: {{ emergency.id }},
+          type: '{{ emergency.type|escapejs }}',
+          code: '{{ emergency.code|escapejs }}',
+          priority: '{{ emergency.priority|escapejs }}',
+          lat: {{ emergency.location_lat|unlocalize }},
+          lon: {{ emergency.location_lon|unlocalize }}
+        }
       }).addTo(layerGroups.emergencias);
       
       var emergencyPopup = `
@@ -464,10 +497,10 @@
     {% endif %}
   {% endfor %}
 
-  // Datos de agentes para animación
+  // Datos de agentes para animación - LIMITADO para performance
   const agentMarkers = [];
   const agentData = [
-    {% for a in agents %}
+    {% for a in agents|slice:":50" %}  {# Limitar a 50 agentes #}
       {% if a.lat and a.lon %}
       {
         id: {{ a.id }},
@@ -633,7 +666,81 @@
     }
   });
 
-  // ===== FUNCIONES DE ONDA VERDE =====
+    // Test de rutas - DEBUG
+    document.getElementById('btn-test-routes').addEventListener('click', function() {
+      console.log('=== TEST DIRECTO DE API ===');
+      
+      // Test directo de API
+      console.log('Probando API directamente...');
+      
+      fetch('/api/routes/30/')
+        .then(response => {
+          console.log('Test API Response Status:', response.status);
+          console.log('Test API Response URL:', response.url);
+          console.log('Test API Response OK:', response.ok);
+          return response.text(); // Cambiar a text() para ver la respuesta cruda
+        })
+        .then(text => {
+          console.log('Test API Raw Response:', text);
+          try {
+            const data = JSON.parse(text);
+            console.log('Test API Parsed Data:', data);
+            
+            if (data.success && data.routes && data.routes.length > 0) {
+              // Crear ruta de prueba directa
+              const route = data.routes[0];
+              const routeLine = L.polyline([
+                [-34.6118, -58.4173], // Base
+                [-34.6050, -58.4100]  // Destino
+              ], {
+                color: '#22c55e',
+                weight: 8,
+                opacity: 0.9
+              }).addTo(layerGroups.rutas);
+              
+              routeLine.bindPopup(`
+                <div>
+                  <h6>✅ RUTA DE PRUEBA EXITOSA</h6>
+                  <p><strong>Distancia:</strong> ${route.distance} km</p>
+                  <p><strong>Tiempo:</strong> ${route.duration} min</p>
+                  <p><strong>Recurso:</strong> ${route.resource_type}</p>
+                </div>
+              `);
+              
+              console.log('✅ Ruta de prueba mostrada en mapa');
+              showNotification('✅ API funciona! Ruta de prueba mostrada', 'success');
+            } else {
+              console.log('❌ API responde pero sin rutas válidas');
+              showNotification('⚠️ API responde pero sin rutas', 'warning');
+            }
+          } catch (e) {
+            console.error('Error parsing JSON:', e);
+            console.log('Respuesta no es JSON válido:', text);
+          }
+        })
+        .catch(error => {
+          console.error('Error en API test:', error);
+          showNotification('❌ Error de conexión con API', 'error');
+        });
+      
+      // También probar emergencias encontradas
+      console.log('=== EMERGENCIAS ENCONTRADAS ===');
+      let emergencyCount = 0;
+      layerGroups.emergencias.eachLayer(layer => {
+        if (layer.options && layer.options.emergencyId) {
+          emergencyCount++;
+          console.log(`Emergencia ID: ${layer.options.emergencyId}`, layer.options.emergency);
+        }
+      });
+      
+      if (emergencyCount === 0) {
+        showNotification('ℹ️ No se encontraron emergencias con coordenadas', 'info');
+        console.log('No hay marcadores de emergencias con coordenadas');
+      } else {
+        console.log(`✅ ${emergencyCount} emergencias encontradas`);
+        showNotification(`🔍 ${emergencyCount} emergencias encontradas. Ver consola.`, 'info');
+      }
+    });  // ===== FUNCIONES DE ONDA VERDE =====
   
   async function activateGreenWave(emergencyId) {
     const routesInfoDiv = document.getElementById(`routes-info-${emergencyId}`);
@@ -740,6 +847,474 @@
     }
   }
 
+  function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type === 'error' ? 'danger' : type === 'success' ? 'success' : 'info'} notification-toast`;
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 9999;
+      min-width: 300px;
+      animation: slideIn 0.3s ease-out;
+    `;
+    notification.innerHTML = `
+      ${message}
+      <button type="button" class="btn-close float-end" onclick="this.parentElement.remove()"></button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      if (notification.parentElement) {
+        notification.remove();
+      }
+    }, 5000);
+  }
+
+  // ===== FUNCIONES DE RUTEO AUTOMÁTICO =====
+  
+  function loadAutomaticRoutes() {
+    // NO CARGAR RUTAS AUTOMÁTICAMENTE - Solo mostrar mensaje
+    console.log('Sistema de rutas listo. Haz clic en "Calcular Rutas" para ver las rutas.');
+    
+    // Mostrar botón prominente para calcular rutas
+    showRouteCalculationPrompt();
+  }
+  
+  function showRouteCalculationPrompt() {
+    const routePrompt = document.createElement('div');
+    routePrompt.className = 'alert alert-info route-prompt';
+    routePrompt.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 9999;
+      min-width: 300px;
+      animation: slideIn 0.5s ease-out;
+    `;
+    routePrompt.innerHTML = `
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <strong>🚨 Sistema de Rutas Listo</strong><br>
+          <small>Haz clic para calcular rutas automáticamente</small>
+        </div>
+        <div>
+          <button onclick="calculateAllRoutes()" class="btn btn-primary btn-sm">
+            🗺️ Calcular Rutas
+          </button>
+          <button onclick="this.parentElement.parentElement.parentElement.remove()" class="btn btn-close btn-sm ms-2"></button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(routePrompt);
+    
+    // Auto-remove after 10 seconds
+    setTimeout(() => {
+      if (routePrompt.parentElement) {
+        routePrompt.remove();
+      }
+    }, 10000);
+  }
+  
+  function calculateAllRoutes() {
+    showNotification('🚀 Iniciando cálculo de rutas...', 'info');
+    
+    // DEBUG: Verificar todas las capas
+    console.log('=== DEBUG CAPAS ===');
+    console.log('LayerGroups disponibles:', Object.keys(layerGroups));
+    
+    // Obtener todas las emergencias desde los marcadores de Leaflet
+    const emergencyMarkers = [];
+    let totalLayers = 0;
+    
+    layerGroups.emergencias.eachLayer(layer => {
+      totalLayers++;
+      console.log('Layer encontrado:', layer);
+      
+      if (layer.options && layer.options.emergencyId) {
+        emergencyMarkers.push(layer);
+        console.log('Emergencia válida encontrada:', layer.options.emergencyId, layer.options.emergency);
+      } else if (layer.getLatLng) {
+        // Emergencia sin emergencyId - crear uno temporal
+        const latlng = layer.getLatLng();
+        layer.options = layer.options || {};
+        layer.options.emergencyId = Math.floor(Math.random() * 1000) + Date.now();
+        layer.options.emergency = {
+          type: 'Emergencia Genérica',
+          priority: 'Normal'
+        };
+        emergencyMarkers.push(layer);
+        console.log('Emergencia temporal creada:', layer.options.emergencyId);
+      }
+    });
+    
+    console.log(`Total layers: ${totalLayers}, Emergencias válidas: ${emergencyMarkers.length}`);
+    
+    if (emergencyMarkers.length === 0) {
+      showNotification('ℹ️ No hay emergencias activas con coordenadas. Creando rutas de prueba...', 'info');
+      createTestRoutes();
+      return;
+    }
+    
+    let routesCalculated = 0;
+    let totalEmergencies = emergencyMarkers.length;
+    
+    showNotification(`📊 Calculando rutas para ${totalEmergencies} emergencias...`, 'info');
+    
+    emergencyMarkers.forEach((marker, index) => {
+      const emergencyId = marker.options.emergencyId;
+      
+      // Calcular con delay para no sobrecargar
+      setTimeout(() => {
+        console.log(`Calculando ruta para emergencia ${emergencyId}...`);
+        
+        fetch(`/api/routes/${emergencyId}/`)
+        .then(response => {
+          console.log(`Respuesta API emergencia ${emergencyId}:`, response.status);
+          return response.json();
+        })
+        .then(data => {
+          console.log(`Datos API emergencia ${emergencyId}:`, data);
+          
+          if (data.success && data.routes && data.routes.length > 0) {
+            data.routes.forEach(route => {
+              console.log('Mostrando ruta:', route);
+              displayRouteOnMap({
+                ...route,
+                emergency_id: emergencyId,
+                emergency_type: marker.options.emergency?.type || 'Emergencia',
+                priority: marker.options.emergency?.priority || 'Normal'
+              });
+            });
+            routesCalculated++;
+            
+            if (routesCalculated < totalEmergencies) {
+              showNotification(`⏳ Calculadas ${routesCalculated}/${totalEmergencies} rutas...`, 'info');
+            } else {
+              showNotification(`✅ Todas las rutas calculadas (${routesCalculated}/${totalEmergencies})`, 'success');
+              activateTrafficLightsIfNeeded();
+            }
+          } else {
+            console.log(`Sin rutas para emergencia ${emergencyId}:`, data);
+            // Crear ruta de prueba si la API falla
+            createFallbackRoute(marker, emergencyId);
+            routesCalculated++;
+            
+            if (routesCalculated >= totalEmergencies) {
+              showNotification(`✅ Proceso completado. ${routesCalculated}/${totalEmergencies} emergencias procesadas`, 'success');
+            }
+          }
+        })
+        .catch(error => {
+          console.error(`Error API emergencia ${emergencyId}:`, error);
+          // Crear ruta de prueba en caso de error
+          createFallbackRoute(marker, emergencyId);
+          routesCalculated++;
+          
+          if (routesCalculated >= totalEmergencies) {
+            showNotification(`⚠️ Proceso completado con algunos errores`, 'warning');
+          }
+        });
+      }, index * 500); // 500ms delay entre cada cálculo
+    });
+    
+    // Remover el prompt
+    document.querySelector('.route-prompt')?.remove();
+  }
+  
+  function createTestRoutes() {
+    // Crear algunas rutas de prueba en CABA
+    const testRoutes = [
+      {
+        name: 'Ruta Test 1 - Plaza de Mayo a Palermo',
+        coordinates: [
+          [-34.6118, -58.4173], // Plaza de Mayo
+          [-34.5875, -58.4050]  // Palermo
+        ],
+        type: 'Emergencia Test',
+        priority: 'Alto'
+      },
+      {
+        name: 'Ruta Test 2 - Retiro a San Telmo',
+        coordinates: [
+          [-34.5989, -58.3734], // Retiro
+          [-34.6214, -58.3731]  // San Telmo
+        ],
+        type: 'Emergencia Test',
+        priority: 'Crítico'
+      }
+    ];
+    
+    testRoutes.forEach((testRoute, index) => {
+      setTimeout(() => {
+        const routeLine = L.polyline(testRoute.coordinates, {
+          color: testRoute.priority === 'Crítico' ? '#ef4444' : '#f59e0b',
+          weight: 6,
+          opacity: 0.8,
+          emergencyId: `test_${index}`,
+          priority: testRoute.priority
+        }).addTo(layerGroups.rutas);
+        
+        routeLine.bindPopup(`
+          <div class="route-popup">
+            <h6>🧪 ${testRoute.name}</h6>
+            <p><strong>Tipo:</strong> ${testRoute.type}</p>
+            <p><strong>Prioridad:</strong> ${testRoute.priority}</p>
+            <p><strong>Estado:</strong> Ruta de prueba</p>
+          </div>
+        `);
+        
+        animateRoute(routeLine);
+        
+        if (index === testRoutes.length - 1) {
+          showNotification('✅ Rutas de prueba creadas exitosamente', 'success');
+        }
+      }, index * 1000);
+    });
+  }
+  
+  function createFallbackRoute(marker, emergencyId) {
+    if (!marker.getLatLng) return;
+    
+    const emergencyPos = marker.getLatLng();
+    const basePos = [-34.6118, -58.4173]; // Plaza de Mayo como base
+    
+    const routeLine = L.polyline([basePos, [emergencyPos.lat, emergencyPos.lng]], {
+      color: '#3b82f6',
+      weight: 4,
+      opacity: 0.6,
+      emergencyId: emergencyId,
+      priority: 'Normal',
+      dashArray: '10,10' // Línea punteada para indicar que es fallback
+    }).addTo(layerGroups.rutas);
+    
+    routeLine.bindPopup(`
+      <div class="route-popup">
+        <h6>🚗 Ruta Directa</h6>
+        <p><strong>Emergencia ID:</strong> ${emergencyId}</p>
+        <p><strong>Tipo:</strong> Ruta de respaldo</p>
+        <p><strong>Estado:</strong> Línea directa estimada</p>
+      </div>
+    `);
+    
+    console.log(`Ruta fallback creada para emergencia ${emergencyId}`);
+  }
+  
+  function activateTrafficLightsIfNeeded() {
+    // Verificar si hay rutas de código rojo y activar semáforos
+    let hasRedCodeRoutes = false;
+    layerGroups.rutas.eachLayer(layer => {
+      if (layer.options && layer.options.priority === 'Crítico') {
+        hasRedCodeRoutes = true;
+      }
+    });
+    
+    if (hasRedCodeRoutes) {
+      showNotification('🚦 Activando onda verde para emergencias críticas...', 'info');
+      activateTrafficLights();
+    }
+  }
+  
+  function displayRouteOnMap(route) {
+    if (!route.geometry || !route.geometry.coordinates) {
+      console.log('Ruta sin geometría válida:', route);
+      return;
+    }
+    
+    // Convertir coordenadas de [lon, lat] a [lat, lon] para Leaflet
+    const latLngs = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+    
+    // Color según prioridad
+    const colors = {
+      'Crítico': '#ef4444',
+      'Alto': '#f59e0b', 
+      'Normal': '#3b82f6'
+    };
+    
+    const routeColor = colors[route.priority] || '#3b82f6';
+    
+    const routeLine = L.polyline(latLngs, {
+      color: routeColor,
+      weight: 6,
+      opacity: 0.8,
+      emergencyId: route.emergency_id,
+      priority: route.priority // Guardar prioridad para referencia
+    }).addTo(layerGroups.rutas);
+    
+    // Agregar popup con información de la ruta
+    routeLine.bindPopup(`
+      <div class="route-popup">
+        <h6>🚨 ${route.emergency_type || 'Emergencia'}</h6>
+        <p><strong>Prioridad:</strong> <span style="color: ${routeColor};">${route.priority || 'Normal'}</span></p>
+        <p><strong>Distancia:</strong> ${route.distance || 'N/A'} km</p>
+        <p><strong>Tiempo estimado:</strong> ${route.duration || 'N/A'} min</p>
+        <p><strong>Recurso:</strong> ${route.resource_type || 'No asignado'}</p>
+        <hr>
+        <button onclick="recalculateRoute(${route.emergency_id})" class="btn btn-sm btn-primary">
+          🔄 Recalcular
+        </button>
+        <button onclick="viewRouteDetails(${route.emergency_id})" class="btn btn-sm btn-info">
+          📊 Ver detalles
+        </button>
+      </div>
+    `);
+    
+    // Animar la línea
+    animateRoute(routeLine);
+    
+    console.log(`Ruta mostrada para emergencia ${route.emergency_id}:`, route);
+  }
+  
+  function animateRoute(routeLine) {
+    let dashOffset = 0;
+    routeLine.setStyle({
+      dashArray: '20, 10',
+      dashOffset: dashOffset
+    });
+    
+    const animate = () => {
+      dashOffset -= 2;
+      routeLine.setStyle({dashOffset: dashOffset});
+      if (Math.abs(dashOffset) < 100) {
+        requestAnimationFrame(animate);
+      }
+    };
+    animate();
+  }
+  
+  function recalculateRoute(emergencyId) {
+    fetch(`/calculate-routes/${emergencyId}/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        // Limpiar rutas existentes para esta emergencia
+        layerGroups.rutas.eachLayer(layer => {
+          if (layer.options && layer.options.emergencyId === emergencyId) {
+            layerGroups.rutas.removeLayer(layer);
+          }
+        });
+        
+        // Mostrar nuevas rutas
+        data.routes.forEach(route => {
+          displayRouteOnMap(route);
+        });
+        
+        showNotification('✅ Ruta recalculada exitosamente', 'success');
+      } else {
+        showNotification('❌ Error al recalcular ruta', 'error');
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      showNotification('❌ Error de conexión', 'error');
+    });
+  }
+  
+  function viewRouteDetails(emergencyId) {
+    fetch(`/route-details/${emergencyId}/`)
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        showRouteDetailsModal(data.route_details);
+      }
+    })
+    .catch(error => console.error('Error:', error));
+  }
+  
+  function showRouteDetailsModal(details) {
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.innerHTML = `
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">📊 Detalles de la Ruta</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row">
+              <div class="col-md-6">
+                <h6>🚨 Información de la Emergencia</h6>
+                <p><strong>Tipo:</strong> ${details.emergency_type}</p>
+                <p><strong>Prioridad:</strong> ${details.priority}</p>
+                <p><strong>Ubicación:</strong> ${details.address}</p>
+              </div>
+              <div class="col-md-6">
+                <h6>🚗 Información del Recurso</h6>
+                <p><strong>Tipo:</strong> ${details.resource_type}</p>
+                <p><strong>Identificación:</strong> ${details.resource_id}</p>
+                <p><strong>Ubicación actual:</strong> ${details.current_location}</p>
+              </div>
+            </div>
+            <hr>
+            <div class="row">
+              <div class="col-md-4">
+                <div class="text-center">
+                  <h6>📏 Distancia</h6>
+                  <span class="badge bg-primary fs-6">${details.distance} km</span>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="text-center">
+                  <h6>⏱️ Tiempo Estimado</h6>
+                  <span class="badge bg-warning fs-6">${details.duration} min</span>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="text-center">
+                  <h6>🚦 Semáforos</h6>
+                  <span class="badge bg-success fs-6">${details.traffic_lights_count}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+    
+    modal.addEventListener('hidden.bs.modal', () => {
+      document.body.removeChild(modal);
+    });
+  }
+  
+  function showRouteInfo(route) {
+    const infoPanel = document.getElementById('info-panel');
+    if (infoPanel) {
+      const routeCard = document.createElement('div');
+      routeCard.className = 'alert alert-info mb-2';
+      routeCard.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <strong>🚨 ${route.emergency_type}</strong><br>
+            <small>📏 ${route.distance}km | ⏱️ ${route.duration}min</small>
+          </div>
+          <div>
+            <button onclick="recalculateRoute(${route.emergency_id})" class="btn btn-sm btn-outline-primary">
+              🔄
+            </button>
+          </div>
+        </div>
+      `;
+      infoPanel.appendChild(routeCard);
+    }
+  }
+
   // ===== FUNCIONES DE RUTEO =====
   
   function highlightEmergency(marker) {
@@ -770,6 +1345,19 @@
         throw new Error(data.error || 'Error calculando rutas');
       }
       
+      // Verificar si la emergencia está resuelta
+      if (data.emergency && data.emergency.status === 'resuelta') {
+        routesInfoDiv.innerHTML = `
+          <div style="background: #d4edda; padding: 10px; border-radius: 4px; border-left: 4px solid #28a745;">
+            <strong style="color: #155724;">✅ EMERGENCIA RESUELTA</strong>
+            <p style="margin: 5px 0 0 0; color: #155724; font-size: 12px;">
+              Las rutas se han completado. <a href="/detalle/${emergencyId}/" style="color: #0d6efd;">Ver detalle</a>
+            </p>
+          </div>
+        `;
+        return; // No mostrar rutas en el mapa
+      }
+      
       clearRoutes(); // Limpiar rutas anteriores
       
       if (data.routes.length === 0) {
@@ -779,44 +1367,81 @@
       
       // Mostrar información de rutas
       let routesHtml = '<div style="border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 8px;">';
-      routesHtml += `<strong>📍 Rutas Calculadas (${data.routes.length}):</strong><br>`;
+      routesHtml += `<strong>� Recursos Asignados (${data.routes.length}):</strong><br>`;
       
       data.routes.forEach((route, index) => {
+        console.log('Procesando ruta:', route); // Debug
+        
         // Dibujar ruta en el mapa
-        if (route.route_geometry && route.route_geometry.coordinates) {
-          const routeColor = getRouteColor(index);
-          const routeLine = L.geoJSON(route.route_geometry, {
-            style: {
-              color: routeColor,
-              weight: 4,
-              opacity: 0.8,
-              dashArray: '10,10'
-            }
-          }).addTo(layerGroups.rutas);
-          
-          // Añadir popup a la ruta
-          routeLine.bindPopup(`
-            <div>
-              <h5>${route.resource_name}</h5>
-              <p><strong>Distancia:</strong> ${route.distance_km} km</p>
-              <p><strong>ETA:</strong> ${route.eta_minutes} min</p>
-              <p><strong>Proveedor:</strong> ${route.provider}</p>
-            </div>
-          `);
-          
-          activeRoutes.push({
-            id: route.resource_id,
-            line: routeLine,
-            route: route
-          });
+        if (route.geometry && route.geometry.coordinates && route.geometry.coordinates.length > 0) {
+          try {
+            const routeColor = getRouteColor(index);
+            const routeLine = L.geoJSON(route.geometry, {
+              style: {
+                color: routeColor,
+                weight: 5,
+                opacity: 0.9,
+                dashArray: index === 0 ? '0' : '10,5'  // Primera ruta sólida, otras punteadas
+              }
+            }).addTo(layerGroups.rutas);
+            
+            // Añadir popup a la ruta
+            routeLine.bindPopup(`
+              <div>
+                <h5>${route.resource_type || 'Recurso desconocido'}</h5>
+                <p><strong>📏 Distancia:</strong> ${route.distance} km</p>
+                <p><strong>⏱️ ETA:</strong> ${route.duration} min</p>
+                <p><strong>🏆 Prioridad:</strong> ${index + 1}°</p>
+              </div>
+            `);
+            
+            activeRoutes.push({
+              id: route.resource_id,
+              line: routeLine,
+              route: route
+            });
+            
+            console.log('✓ Ruta dibujada exitosamente'); // Debug
+          } catch (err) {
+            console.error('Error dibujando ruta:', err);
+          }
+        } else {
+          console.log('Ruta sin geometría válida:', route); // Debug
         }
         
-        // Añadir información al popup
-        const priority = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+        // Añadir información al popup con mejor explicación
+        let priority, priorityColor, explanation;
+        
+        if (index === 0) {
+            priority = '🚨 RUTA ÓPTIMA';
+            priorityColor = '#ff4444';
+            explanation = '⭐ Menor tiempo + distancia';
+        } else if (index === 1) {
+            priority = '⚡ RUTA RÁPIDA';  
+            priorityColor = '#ff8800';
+            explanation = '🔄 Segunda mejor opción';
+        } else {
+            priority = `🛡️ BACKUP ${index + 1}`;
+            priorityColor = '#4CAF50';
+            explanation = '🔧 Recurso de respaldo';
+        }
+        
+        const resourceIcon = route.resource_type.includes('Ambulancia') ? '🚑' : 
+                           route.resource_type.includes('Bombero') ? '🚒' :
+                           route.resource_type.includes('Policía') ? '🚔' : '🚨';
+        
         routesHtml += `
-          <div style="font-size: 11px; margin: 2px 0; padding: 2px 0; border-bottom: 1px solid #f3f4f6;">
-            ${priority} ${route.resource_name}<br>
-            &nbsp;&nbsp;&nbsp;📏 ${route.distance_km} km | ⏱️ ${route.eta_minutes} min
+          <div style="font-size: 12px; margin: 6px 0; padding: 8px; border-left: 4px solid ${priorityColor}; background: rgba(255,255,255,0.9); border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <div style="font-weight: bold; color: ${priorityColor}; margin-bottom: 4px;">${priority}</div>
+            <div style="margin-bottom: 4px;">${resourceIcon} <strong>${route.resource_type || 'Recurso'}</strong></div>
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: #666;">
+              <span>📏 ${route.distance} km</span>
+              <span>⏱️ ${route.duration} min</span>
+              <span>📊 Score: ${route.score}</span>
+            </div>
+            <div style="font-size: 10px; color: #888; margin-top: 4px; font-style: italic;">
+              ${explanation}
+            </div>
           </div>
         `;
       });
@@ -824,9 +1449,15 @@
       routesHtml += '</div>';
       routesInfoDiv.innerHTML = routesHtml;
       
-      // Centrar mapa en la emergencia y rutas
-      const group = new L.featureGroup(activeRoutes.map(r => r.line));
-      map.fitBounds(group.getBounds(), { padding: [20, 20] });
+      // Centrar mapa en las rutas si existen
+      if (activeRoutes.length > 0) {
+        try {
+          const group = new L.featureGroup(activeRoutes.map(r => r.line));
+          map.fitBounds(group.getBounds(), { padding: [20, 20] });
+        } catch (err) {
+          console.error('Error centrando mapa:', err);
+        }
+      }
       
     } catch (error) {
       console.error('Error calculando rutas:', error);
@@ -979,12 +1610,64 @@
     updateTickerWithActivity(randomMessage);
   }
 
-  // Inicialización
-  updateAgents();
-  updateTicker();
+  // Inicialización con indicador de carga
+  document.addEventListener('DOMContentLoaded', function() {
+    showLoadingIndicator();
+    
+    // Cargar componentes progresivamente
+    setTimeout(() => {
+      updateAgents();
+      hideLoadingIndicator();
+    }, 500);
+    
+    setTimeout(() => {
+      updateTicker();
+    }, 1000);
+    
+    setTimeout(() => {
+      loadAutomaticRoutes(); // Preparar sistema de rutas
+    }, 1500);
+  });
   
-  // Actualizaciones periódicas
-  setInterval(updateAgents, 5000); // Mover agentes cada 5s
-  setInterval(updateTicker, 10000); // Actualizar ticker cada 10s
+  function showLoadingIndicator() {
+    const loader = document.createElement('div');
+    loader.id = 'page-loader';
+    loader.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      color: white;
+      font-size: 18px;
+    `;
+    loader.innerHTML = `
+      <div class="text-center">
+        <div class="spinner-border text-light mb-3" role="status">
+          <span class="visually-hidden">Cargando...</span>
+        </div>
+        <div>🚨 Cargando Sistema de Emergencias...</div>
+        <div class="mt-2"><small>Optimizando datos para mejor rendimiento</small></div>
+      </div>
+    `;
+    document.body.appendChild(loader);
+  }
+  
+  function hideLoadingIndicator() {
+    const loader = document.getElementById('page-loader');
+    if (loader) {
+      loader.style.opacity = '0';
+      setTimeout(() => loader.remove(), 500);
+    }
+  }
+  
+  // Actualizaciones periódicas - REDUCIR FRECUENCIA
+  setInterval(updateAgents, 15000); // Mover agentes cada 15s (era 5s)
+  setInterval(updateTicker, 20000); // Actualizar ticker cada 20s (era 10s)
 </script>
 {% endblock %}

@@ -34,6 +34,61 @@ pre { background: #0b1220; padding: 10px; border-radius: 6px; white-space: pre-w
     </ul>
     {% endif %}
 
+    {% if calculated_routes %}
+    <h3>🚗 Rutas Calculadas</h3>
+    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #007bff;">
+        <p style="margin: 0 0 10px 0; color: #6c757d; font-size: 14px;">
+            Las siguientes rutas fueron calculadas automáticamente para esta emergencia:
+        </p>
+        
+        {% for route in calculated_routes %}
+        <div style="background: white; margin: 10px 0; padding: 12px; border-radius: 6px; border-left: 3px solid 
+            {% if forloop.counter == 1 %}#dc3545{% elif forloop.counter == 2 %}#fd7e14{% else %}#28a745{% endif %};">
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div style="font-weight: bold; color: #495057;">
+                    {% if forloop.counter == 1 %}🚨 RUTA ÓPTIMA{% elif forloop.counter == 2 %}⚡ RUTA RÁPIDA{% else %}🛡️ BACKUP {{ forloop.counter }}{% endif %}
+                    - {{ route.resource_type }}
+                </div>
+                <span class="tag {% if route.status == 'activa' %}verde{% elif route.status == 'completada' %}amarillo{% else %}rojo{% endif %}">
+                    {{ route.status|upper }}
+                </span>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; font-size: 13px; color: #6c757d;">
+                <div><strong>📏 Distancia:</strong> {{ route.distance_km|floatformat:1 }} km</div>
+                <div><strong>⏱️ Tiempo:</strong> {{ route.estimated_time_minutes|floatformat:1 }} min</div>
+                <div><strong>📊 Score:</strong> {{ route.priority_score|floatformat:1 }}</div>
+                <div><strong>📅 Calculado:</strong> {{ route.calculated_at|date:"d/m H:i" }}</div>
+            </div>
+            
+            {% if route.completed_at %}
+            <div style="margin-top: 8px; padding: 6px; background: #d4edda; border-radius: 4px; font-size: 12px; color: #155724;">
+                ✅ Completado: {{ route.completed_at|date:"d/m/Y H:i" }}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+        
+        {% if emergency.status == 'resuelta' %}
+        <div style="margin-top: 15px; padding: 10px; background: #d4edda; border-radius: 4px; border-left: 4px solid #28a745;">
+            <strong style="color: #155724;">✅ EMERGENCIA RESUELTA</strong>
+            <p style="margin: 5px 0 0 0; color: #155724; font-size: 14px;">
+                Las rutas se han marcado automáticamente como completadas.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107; margin: 15px 0;">
+        <h3 style="margin: 0 0 10px 0; color: #856404;">⚠️ Sin Rutas Calculadas</h3>
+        <p style="margin: 0; color: #856404; font-size: 14px;">
+            No se han calculado rutas para esta emergencia aún. 
+            <a href="/" style="color: #007bff; text-decoration: underline;">Ir al mapa para calcular rutas</a>
+        </p>
+    </div>
+    {% endif %}
+
     <div class="actions">
         <a class="btn" href="{% url 'emergency_list' %}">Volver a la Lista</a>
         {% if emergency.status != 'resuelta' %}

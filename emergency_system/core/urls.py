@@ -4,7 +4,8 @@ from .views import (
     process_emergency, emergency_detail, resolve_emergency,
     agentes_list, unidades_por_fuerza, hospitales_list, facilities_list, dashboard,
     ai_status_view, calculate_routes_api, assign_optimal_resources, real_time_tracking,
-    activate_green_wave_api, traffic_status_api, redistribute_resources_api
+    activate_green_wave_api, traffic_status_api, redistribute_resources_api,
+    route_details_api
 )
 
 urlpatterns = [
@@ -24,6 +25,8 @@ urlpatterns = [
     
     # APIs de ruteo
     path('api/routes/<int:emergency_id>/', calculate_routes_api, name='calculate_routes_api'),
+    path('calculate-routes/<int:emergency_id>/', calculate_routes_api, name='recalculate_route'),
+    path('route-details/<int:emergency_id>/', route_details_api, name='route_details_api'),
     path('api/assign/<int:emergency_id>/', assign_optimal_resources, name='assign_optimal_resources'),
     path('api/tracking/', real_time_tracking, name='real_time_tracking'),
     
