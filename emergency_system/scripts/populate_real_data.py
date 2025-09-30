@@ -18,7 +18,7 @@ from core.models import Force, Vehicle, Agent, Hospital, Facility
 HEADERS = {'User-Agent': 'ova-emergency/1.0'}
 CITY_SUFFIX = ', Ciudad Autónoma de Buenos Aires, Argentina'
 RESET = True  # Si True, limpia datos previos de Hospital, Vehicle y Agent
-SLEEP_SEC = 1.0  # espera entre requests a Nominatim
+SLEEP_SEC = 2.0  # espera entre requests a Nominatim
 
 # Listas ampliadas (CABA)
 HOSPITAL_NAMES = [
@@ -60,18 +60,29 @@ FIRE_STATIONS = [
 ]
 
 POLICE_STATIONS = [
-    'Comisaría Comunal 1', 'Comisaría Comunal 2', 'Comisaría Comunal 3', 'Comisaría Comunal 4',
-    'Comisaría Comunal 5', 'Comisaría Comunal 6', 'Comisaría Comunal 7', 'Comisaría Comunal 8',
-    'Comisaría Comunal 9', 'Comisaría Comunal 10', 'Comisaría Comunal 11', 'Comisaría Comunal 12',
-    'Comisaría Comunal 13', 'Comisaría Comunal 14', 'Comisaría Comunal 15',
+    'Comisaría 1A, Retiro',
+    'Comisaría 2A, Recoleta',
+    'Comisaría 3A, Balvanera',
+    'Comisaría 4A, San Nicolás',
+    'Comisaría 5A, Almagro',
+    'Comisaría 6A, Caballito',
+    'Comisaría 7A, Flores',
+    'Comisaría 8A, Villa Soldati',
+    'Comisaría 9A, Parque Patricios',
+    'Comisaría 10A, Villa Real',
+    'Comisaría 11A, Villa General Mitre',
+    'Comisaría 12A, Coghlan',
+    'Comisaría 13A, Belgrano',
+    'Comisaría 14A, Palermo',
+    'Comisaría 15A, Villa Ortúzar',
 ]
 
 TRANSITO_BASES = [
-    'Base de Tránsito Parque Rivadavia',
-    'Base de Tránsito Parque Centenario',
-    'Base de Tránsito 9 de Julio',
-    'Base de Tránsito General Paz',
-    'Base de Tránsito Autopista Illia',
+    'Dirección General de Tránsito, Parque Rivadavia',
+    'Centro de Gestión y Participación Comunal 7, Parque Centenario',
+    'Dirección de Tránsito, 9 de Julio',
+    'Centro de Tránsito, General Paz',
+    'Centro de Control de Tránsito, Autopista Illia',
 ]
 
 # Nombres plausibles para agentes
@@ -86,20 +97,26 @@ ROLES = {
 }
 
 
-def geocode_one(name):
-    q = f"{name}{CITY_SUFFIX}"
-    url = f"https://nominatim.openstreetmap.org/search?format=json&q={requests.utils.quote(q)}&limit=1"
-    r = requests.get(url, headers=HEADERS, timeout=30)
-    r.raise_for_status()
-    arr = r.json()
-    if not arr:
-        return None
-    item = arr[0]
-    return {
-        'display_name': item.get('display_name'),
-        'lat': float(item['lat']),
-        'lon': float(item['lon'])
-    }
+def geocode_one(name, retries=3):
+    for attempt in range(retries):
+        try:
+            q = f"{name}{CITY_SUFFIX}"
+            url = f"https://nominatim.openstreetmap.org/search?format=json&q={requests.utils.quote(q)}&limit=1"
+            r = requests.get(url, headers=HEADERS, timeout=30)
+            r.raise_for_status()
+            arr = r.json()
+            if arr:
+                item = arr[0]
+                return {
+                    'display_name': item.get('display_name'),
+                    'lat': float(item['lat']),
+                    'lon': float(item['lon'])
+                }
+        except Exception as e:
+            print(f"Intento {attempt+1} falló para {name}: {e}")
+            if attempt < retries - 1:
+                time.sleep(2)  # Espera antes de reintentar
+    return None
 
 
 def ensure_forces():
