@@ -16,9 +16,9 @@ django.setup()
 from core.models import Force, Vehicle, Agent, Hospital, Facility
 
 HEADERS = {'User-Agent': 'ova-emergency/1.0'}
-CITY_SUFFIX = ', Ciudad Autónoma de Buenos Aires, Argentina'
+CITY_SUFFIX = ', Buenos Aires, Argentina'
 RESET = True  # Si True, limpia datos previos de Hospital, Vehicle y Agent
-SLEEP_SEC = 2.0  # espera entre requests a Nominatim
+SLEEP_SEC = 3.0  # espera entre requests a Nominatim
 
 # Listas ampliadas (CABA)
 HOSPITAL_NAMES = [
@@ -44,45 +44,45 @@ HOSPITAL_NAMES = [
 ]
 
 FIRE_STATIONS = [
-    'Cuartel de Bomberos de la Ciudad Recoleta',
-    'Cuartel de Bomberos de la Ciudad Chacarita',
-    'Cuartel de Bomberos de la Ciudad Villa Crespo',
-    'Cuartel de Bomberos de la Ciudad Barracas',
-    'Cuartel de Bomberos de la Ciudad Parque Patricios',
-    'Cuartel de Bomberos de la Ciudad La Boca',
-    'Cuartel de Bomberos de la Ciudad Caballito',
-    'Cuartel de Bomberos de la Ciudad Flores',
-    'Cuartel de Bomberos de la Ciudad Belgrano',
-    'Cuartel de Bomberos de la Ciudad Palermo',
-    'Cuartel de Bomberos de la Ciudad Mataderos',
-    'Cuartel de Bomberos de la Ciudad Lugano',
-    'Cuartel de Bomberos de la Ciudad Devoto',
+    'Bomberos Recoleta',
+    'Bomberos Chacarita',
+    'Bomberos Villa Crespo',
+    'Bomberos Barracas',
+    'Bomberos Parque Patricios',
+    'Bomberos La Boca',
+    'Bomberos Caballito',
+    'Bomberos Flores',
+    'Bomberos Belgrano',
+    'Bomberos Palermo',
+    'Bomberos Mataderos',
+    'Bomberos Lugano',
+    'Bomberos Devoto',
 ]
 
 POLICE_STATIONS = [
-    'Comisaría 1A, Retiro',
-    'Comisaría 2A, Recoleta',
-    'Comisaría 3A, Balvanera',
-    'Comisaría 4A, San Nicolás',
-    'Comisaría 5A, Almagro',
-    'Comisaría 6A, Caballito',
-    'Comisaría 7A, Flores',
-    'Comisaría 8A, Villa Soldati',
-    'Comisaría 9A, Parque Patricios',
-    'Comisaría 10A, Villa Real',
-    'Comisaría 11A, Villa General Mitre',
-    'Comisaría 12A, Coghlan',
-    'Comisaría 13A, Belgrano',
-    'Comisaría 14A, Palermo',
-    'Comisaría 15A, Villa Ortúzar',
+    'Comisaria 1 Retiro',
+    'Comisaria 2 Recoleta',
+    'Comisaria 3 Balvanera',
+    'Comisaria 4 San Nicolas',
+    'Comisaria 5 Almagro',
+    'Comisaria 6 Caballito',
+    'Comisaria 7 Flores',
+    'Comisaria 8 Villa Soldati',
+    'Comisaria 9 Parque Patricios',
+    'Comisaria 10 Villa Real',
+    'Comisaria 11 Villa General Mitre',
+    'Comisaria 12 Coghlan',
+    'Comisaria 13 Belgrano',
+    'Comisaria 14 Palermo',
+    'Comisaria 15 Villa Ortuzar',
 ]
 
 TRANSITO_BASES = [
-    'Dirección General de Tránsito, Parque Rivadavia',
-    'Centro de Gestión y Participación Comunal 7, Parque Centenario',
-    'Dirección de Tránsito, 9 de Julio',
-    'Centro de Tránsito, General Paz',
-    'Centro de Control de Tránsito, Autopista Illia',
+    'Transito Parque Rivadavia',
+    'Transito Parque Centenario',
+    'Transito 9 de Julio',
+    'Transito General Paz',
+    'Transito Autopista Illia',
 ]
 
 # Nombres plausibles para agentes
@@ -97,10 +97,10 @@ ROLES = {
 }
 
 
-def geocode_one(name, retries=3):
+def geocode_one(name, retries=5):
     for attempt in range(retries):
         try:
-            q = f"{name}{CITY_SUFFIX}"
+            q = f"{name.replace(',', '')}{CITY_SUFFIX}"
             url = f"https://nominatim.openstreetmap.org/search?format=json&q={requests.utils.quote(q)}&limit=1"
             r = requests.get(url, headers=HEADERS, timeout=30)
             r.raise_for_status()
@@ -115,7 +115,7 @@ def geocode_one(name, retries=3):
         except Exception as e:
             print(f"Intento {attempt+1} falló para {name}: {e}")
             if attempt < retries - 1:
-                time.sleep(2)  # Espera antes de reintentar
+                time.sleep(3)  # Espera antes de reintentar
     return None
 
 
@@ -134,6 +134,7 @@ def reset_data():
         Agent.objects.all().delete()
         Vehicle.objects.all().delete()
         Hospital.objects.all().delete()
+        Facility.objects.all().delete()
 
 
 def create_hospitals():
@@ -236,46 +237,34 @@ def create_station_vehicles(forces):
     # Bomberos por cuartel
     bomberos = forces['Bomberos']
     fire_created = 0
-    for name in FIRE_STATIONS:
-        g = geocode_one(name)
-        time.sleep(SLEEP_SEC)
-        if not g:
-            print(f"No encontrado cuartel: {name}")
-            continue
-        count = random.randint(2, 6)
-        for _ in range(count):
-            Vehicle.objects.create(force=bomberos, type='Camión de Bomberos', status='disponible', current_lat=g['lat'], current_lon=g['lon'])
-            fire_created += 1
+    for fac in Facility.objects.filter(kind='cuartel', force=bomberos):
+        if fac.lat and fac.lon:
+            count = random.randint(2, 6)
+            for _ in range(count):
+                Vehicle.objects.create(force=bomberos, type='Camión de Bomberos', status='disponible', current_lat=fac.lat, current_lon=fac.lon)
+                fire_created += 1
     print(f"Camiones de Bomberos creados: {fire_created}")
 
     # Policía por comisaría
     policia = forces['Policía']
     patrol_created = 0
-    for name in POLICE_STATIONS:
-        g = geocode_one(name)
-        time.sleep(SLEEP_SEC)
-        if not g:
-            print(f"No encontrada comisaría: {name}")
-            continue
-        count = random.randint(3, 10)
-        for _ in range(count):
-            Vehicle.objects.create(force=policia, type='Patrulla', status='disponible', current_lat=g['lat'], current_lon=g['lon'])
-            patrol_created += 1
+    for fac in Facility.objects.filter(kind='comisaria', force=policia):
+        if fac.lat and fac.lon:
+            count = random.randint(3, 10)
+            for _ in range(count):
+                Vehicle.objects.create(force=policia, type='Patrulla', status='disponible', current_lat=fac.lat, current_lon=fac.lon)
+                patrol_created += 1
     print(f"Patrullas creadas: {patrol_created}")
 
     # Tránsito por base
     transito = forces['Tránsito']
     moto_created = 0
-    for name in TRANSITO_BASES:
-        g = geocode_one(name)
-        time.sleep(SLEEP_SEC)
-        if not g:
-            print(f"No encontrada base de Tránsito: {name}")
-            continue
-        count = random.randint(3, 8)
-        for _ in range(count):
-            Vehicle.objects.create(force=transito, type='Moto de Tránsito', status='disponible', current_lat=g['lat'], current_lon=g['lon'])
-            moto_created += 1
+    for fac in Facility.objects.filter(kind='base_transito', force=transito):
+        if fac.lat and fac.lon:
+            count = random.randint(3, 8)
+            for _ in range(count):
+                Vehicle.objects.create(force=transito, type='Moto de Tránsito', status='disponible', current_lat=fac.lat, current_lon=fac.lon)
+                moto_created += 1
     print(f"Motos de Tránsito creadas: {moto_created}")
 
 
