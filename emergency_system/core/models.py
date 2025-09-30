@@ -2,7 +2,7 @@ from django.db import models
 from django.utils import timezone
 from django.conf import settings
 from .ai import classify_emergency
-from .llm import classify_with_ollama
+from .llm import classify_with_ai
 
 class Force(models.Model):
     name = models.CharField(max_length=100, unique=True, verbose_name='Nombre')  # e.g., 'Bomberos', 'SAME', 'Policía', 'Tránsito'
@@ -87,10 +87,14 @@ class Emergency(models.Model):
             self.process_ia()
 
     def classify_code(self):
-        # Intentar clasificar con Ollama si está disponible
-        result = classify_with_ollama(self.description) if getattr(settings, 'OLLAMA_BASE_URL', None) else None
+    # Intentar clasificar con IA en la nube si está disponible
+        try:
+            result = classify_with_ai(self.description)
+        except Exception:
+            result = None
+
         if result:
-            code = result['codigo']
+            code = result.get('codigo') or 'verde'
             score = result.get('score') or (60 if code == 'rojo' else 30 if code == 'amarillo' else 5)
             reasons = result.get('razones', [])
             # Sugerencia de fuerza primaria desde la IA
@@ -106,15 +110,22 @@ class Emergency(models.Model):
         self.priority = 10 if code == 'rojo' else 5 if code == 'amarillo' else 1
         # Si hay IA, dejar sólo el reporte de IA
         if result:
+            fuente = result.get('fuente', 'ia').upper()
             tipo_val = result.get('tipo') or ''
             razones = reasons or []
             informe = (
-                "Clasificación IA (Ollama)\n"
+                f"Clasificación IA ({fuente})\n"
                 f"- Tipo: {tipo_val}\n"
                 f"- Código: {code}\n"
                 f"- Puntaje: {score}\n"
                 "- Razones:\n  - " + "\n  - ".join(razones)
             )
+            recursos = result.get('recursos') or []
+            if recursos:
+                recursos_txt = "\n  - ".join(
+                    f"{r.get('cantidad', 1)} x {r.get('tipo')}" for r in recursos
+                )
+                informe += f"\n- Recursos sugeridos:\n  - {recursos_txt}"
             self.resolution_notes = informe
         return code
 

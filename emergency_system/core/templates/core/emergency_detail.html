@@ -1,20 +1,111 @@
 {% extends 'core/base.html' %}
 {% block title %}Detalle de Emergencia{% endblock %}
+{% block extra_head %}
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+{% endblock %}
 {% block extra_styles %}
 .tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; color: #fff; }
 .tag.rojo { background: #d9534f; }
 .tag.amarillo { background: #f0ad4e; }
 .tag.verde { background: #22c55e; }
 pre { background: #0b1220; padding: 10px; border-radius: 6px; white-space: pre-wrap; border:1px solid #1f2937; }
+#emergency-map { height: 420px; border:2px solid #1f2937; border-radius: 10px; margin: 20px 0 10px; }
+.route-primary { stroke: #dc2626; filter: drop-shadow(0 0 6px rgba(220,38,38,0.6)); }
+.route-secondary { stroke: #f59e0b; }
+.route-backup { stroke: #16a34a; }
+.leaflet-container.dark .leaflet-tile { filter: brightness(0.9) contrast(1.05); }
+.tracking-marker { background:#fff; border-radius:50%; width:18px; height:18px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; }
+.tracking-marker.code-red { box-shadow:0 0 8px 3px rgba(220,38,38,0.7); }
+.tracking-marker.green-wave { box-shadow:0 0 10px 4px rgba(34,197,94,0.8); }
+.traffic-badge { padding:2px 6px; border-radius:4px; font-size:11px; font-weight:500; }
+.traffic-badge.libre { background:#065f46; color:#a7f3d0; }
+.traffic-badge.moderado { background:#92400e; color:#fde68a; }
+.traffic-badge.congestionado { background:#7f1d1d; color:#fecaca; }
+.legend-routes { display:flex; gap:10px; flex-wrap:wrap; margin:6px 0 8px; font-size:11px; }
+.legend-routes span { display:flex; align-items:center; gap:4px; }
+.legend-color { width:14px; height:4px; border-radius:2px; display:inline-block; }
+.gw-indicator { display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; }
+.gw-on { background:rgba(34,197,94,0.15); color:#22c55e; border:1px solid rgba(34,197,94,0.4); }
+.gw-off { background:rgba(75,85,99,0.3); color:#9ca3af; border:1px solid rgba(75,85,99,0.5); }
+.btn-inline { font-size:12px; padding:4px 10px; }
 {% endblock %}
 {% block content %}
     <h1>Emergencia #{{ emergency.id }} <span class="tag {{ emergency.code }}">{{ emergency.code|upper }}</span></h1>
+    {% if emergency.status == 'resuelta' %}
+    <div style="display:inline-block; margin:6px 0 10px; background:#1e3a8a; color:#bfdbfe; padding:6px 10px; border:1px solid #3b82f6; border-radius:8px; font-size:12px; font-weight:600;">
+        🧊 RUTAS CONGELADAS · No se recalculan más (estado final)
+    </div>
+    {% endif %}
     <p><strong>Descripción:</strong> {{ emergency.description }}</p>
     <p><strong>Dirección:</strong> {{ emergency.address }}</p>
     <p><strong>Estado:</strong> {{ emergency.status }} {% if emergency.onda_verde %} | <strong>Onda Verde:</strong> ACTIVADA{% endif %}</p>
     {% if emergency.assigned_force %}
         <p><strong>Fuerza:</strong> {{ emergency.assigned_force.name }} {% if emergency.assigned_vehicle %} | <strong>Vehículo:</strong> {{ emergency.assigned_vehicle.type }}{% endif %}</p>
     {% endif %}
+
+        <div id="live-routing-panel" class="card" style="padding:16px; margin-top:15px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <strong>🗺️ Mapa Operativo de la Emergencia</strong>
+                    <span id="gw-indicator" class="gw-indicator {% if emergency.onda_verde %}gw-on{% else %}gw-off{% endif %}">
+                        {% if emergency.onda_verde %}🚦 Onda Verde ACTIVA{% else %}🚦 Onda Verde INACTIVA{% endif %}
+                    </span>
+                    <span id="traffic-summary" style="font-size:11px; opacity:.8;"></span>
+                </div>
+                <div style="display:flex; gap:6px;">
+                    <button id="btn-recalc" class="btn btn-primary btn-inline"{% if emergency.status == 'resuelta' %} disabled title="Emergencia resuelta - rutas congeladas"{% endif %}>🔄 Recalcular Rutas</button>
+                    {% if emergency.code == 'rojo' and not emergency.onda_verde %}
+                    <button id="btn-green-wave" class="btn btn-success btn-inline">🚦 Activar Onda Verde</button>
+                    {% endif %}
+                    <button id="btn-center" class="btn btn-secondary btn-inline">🎯 Centrar</button>
+                </div>
+            </div>
+            <div class="legend-routes">
+                <span><i class="legend-color" style="background:#dc2626"></i>Óptima</span>
+                <span><i class="legend-color" style="background:#f59e0b"></i>Rápida</span>
+                <span><i class="legend-color" style="background:#16a34a"></i>Backups</span>
+                <span><i class="legend-color" style="background:#22c55e; box-shadow:0 0 6px 2px rgba(34,197,94,.7);"></i>Onda Verde</span>
+            </div>
+            <div id="emergency-map"></div>
+            <div id="route-progress-wrapper" style="margin:8px 0 4px;{% if emergency.status == 'resuelta' %} display:none;{% endif %}">
+                <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:2px;">
+                    <span>Progreso hacia la emergencia</span>
+                    <span id="progress-label" style="opacity:.8;">0%</span>
+                </div>
+                <div style="position:relative; height:10px; background:#1f2937; border-radius:6px; overflow:hidden;">
+                    <div id="progress-bar" style="position:absolute; left:0; top:0; bottom:0; width:0%; background:linear-gradient(90deg,#2563eb,#10b981); transition:width .25s ease; box-shadow:0 0 4px rgba(16,185,129,.6);"></div>
+                </div>
+                <div id="progress-stats" style="display:flex; gap:12px; flex-wrap:wrap; font-size:11px; margin-top:4px; opacity:.85;">
+                    <span id="stat-distance">Distancia: --</span>
+                    <span id="stat-eta">ETA: --</span>
+                    <span id="stat-speed">Velocidad: --</span>
+                    <span id="stat-resources" style="opacity:.75;">Recursos en ruta: --</span>
+                </div>
+                <div id="progress-history" style="margin-top:6px; display:flex; align-items:center; gap:8px;">
+                    <canvas id="progress-spark" width="120" height="30" style="background:#111827; border:1px solid #1f2937; border-radius:4px;"></canvas>
+                    <span style="font-size:10px; opacity:.65;">Histórico (progreso %)</span>
+                </div>
+            </div>
+            <div id="green-wave-timeline" class="card" style="padding:10px; background:#111827; border:1px solid #1f2937; border-radius:8px; margin:6px 0;{% if emergency.status == 'resuelta' %} display:none;{% endif %}">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                   <strong style="font-size:12px;">Ventanas de Onda Verde (próximas intersecciones)</strong>
+                   <span id="gw-last-update" style="font-size:10px; opacity:.6;">--</span>
+                </div>
+                <div id="gw-timeline-body" style="display:flex; gap:6px; overflow-x:auto; margin-top:6px; scrollbar-width:thin;">
+                    <div style="font-size:11px; opacity:.6;">Sin datos aún...</div>
+                </div>
+            </div>
+            <div id="route-cards" style="margin-top:10px; display:grid; gap:8px;"></div>
+            <div id="multi-mobility-container" class="card" style="padding:12px; background:#0f172a; border:1px solid #1f2937; border-radius:10px; margin-top:10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                    <strong style="font-size:13px;">📡 Movilidad por Recurso (dinámica)</strong>
+                    <span id="mobility-last-update" style="font-size:10px; opacity:.6;">--</span>
+                </div>
+                <div id="mobility-resources" style="display:grid; gap:10px; margin-top:10px; grid-template-columns:repeat(auto-fill,minmax(260px,1fr));"></div>
+                <div id="mobility-empty" style="display:none; font-size:12px; opacity:.7; margin-top:8px;">Sin datos de movilidad aún.</div>
+            </div>
+        </div>
 
     <h3>Informe de Proceso</h3>
     {% if emergency.ai_response %}
@@ -89,6 +180,7 @@ pre { background: #0b1220; padding: 10px; border-radius: 6px; white-space: pre-w
     </div>
     {% endif %}
 
+
     <div class="actions">
         <a class="btn" href="{% url 'emergency_list' %}">Volver a la Lista</a>
         {% if emergency.status != 'resuelta' %}
@@ -99,4 +191,813 @@ pre { background: #0b1220; padding: 10px; border-radius: 6px; white-space: pre-w
         </form>
         {% endif %}
     </div>
+        <script>
+            const EMERGENCY = JSON.parse('{{ emergency_json|escapejs }}');
+            const ROUTES = JSON.parse('{{ routes_json|escapejs }}');
+            let map, routeLayers = [], trackingMarkers = {}, trackingTimer = null;
+
+            function initMap(){
+                map = L.map('emergency-map').setView([EMERGENCY.lat, EMERGENCY.lon], 15);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '© OpenStreetMap'}).addTo(map);
+                L.marker([EMERGENCY.lat, EMERGENCY.lon], {title:'Emergencia'}).addTo(map).bindPopup('🚨 Punto de la emergencia');
+                renderRoutes(ROUTES);
+                buildRouteCards(ROUTES);
+                startTracking();
+            }
+
+            function colorForIndex(i){
+                if(i===0) return '#dc2626';
+                if(i===1) return '#f59e0b';
+                return '#16a34a';
+            }
+
+            function renderRoutes(routes){
+                routeLayers.forEach(l=>map.removeLayer(l));
+                routeLayers = [];
+                routes.forEach((r,i)=>{
+                    if(!r.coordinates || r.coordinates.length<2) return; // skip invalid
+                    // Evitar mostrar rutas triviales de sólo 2 puntos (probablemente fallback)
+                    if(r.coordinates.length === 2){
+                        // Intento de densificar visual si es fallback
+                        const densified = [];
+                        const a = r.coordinates[0];
+                        const b = r.coordinates[1];
+                        for(let k=0;k<=10;k++){ const t=k/10; densified.push([a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t]); }
+                        r.coordinates = densified;
+                    }
+                    const poly = L.polyline(r.coordinates, {color: colorForIndex(i), weight: i===0?6:4, opacity:0.85, dashArray: i>1?'8,8': null});
+                    poly.addTo(map);
+                    poly.bindPopup(`<strong>${labelForRoute(i)}</strong><br/>${r.resource_type||''}<br/>📏 ${(r.distance_km||0).toFixed(1)} km · ⏱️ ${(r.eta_min||0).toFixed(1)} min` + (r.raw_geometry && r.raw_geometry.provider? `<br/><em>Proveedor: ${r.raw_geometry.provider}</em>`:''));
+                    if(EMERGENCY.onda_verde && i===0){
+                        poly.setStyle({color:'#22c55e'});
+                        poly.getElement && setTimeout(()=>{ const el = poly.getElement(); if(el){ el.style.filter='drop-shadow(0 0 8px rgba(34,197,94,0.8))'; } }, 50);
+                    }
+                    routeLayers.push(poly);
+                    if(i===0){
+                        // ensure animated stroke attributes
+                        setTimeout(()=>{
+                            const el = poly.getElement();
+                            if(el){
+                                const total = el.getTotalLength ? el.getTotalLength() : 500;
+                                el.style.strokeDasharray = `${Math.max(40, total/20)} ${Math.max(60, total/10)}`;
+                                el.style.strokeLinecap = 'round';
+                                animatedPrimaryPathEl = el;
+                            }
+                        },60);
+                    }
+                });
+                if(routeLayers.length){
+                    const g = L.featureGroup(routeLayers); map.fitBounds(g.getBounds(), {padding:[20,20]});
+                }
+                // prepare cached distances for primary route for fast projection
+                if(ROUTES.length && ROUTES[0].coordinates && ROUTES[0].coordinates.length>1){
+                    buildPrimaryRouteCumulative();
+                }
+            }
+
+            function labelForRoute(i){
+                if(i===0) return '🚨 RUTA ÓPTIMA';
+                if(i===1) return '⚡ RUTA RÁPIDA';
+                return `🛡️ BACKUP ${i+1}`;
+            }
+
+            function buildRouteCards(routes){
+                const cont = document.getElementById('route-cards');
+                cont.innerHTML = '';
+                if(!routes.length){ cont.innerHTML = '<div class="alert alert-warning mb-0">No hay rutas calculadas.</div>'; return; }
+                routes.slice(0,7).forEach((r,i)=>{
+                    const div = document.createElement('div');
+                    div.className = 'card';
+                    div.style.padding='8px 12px';
+                    div.innerHTML = `
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <strong style="color:${colorForIndex(i)}">${labelForRoute(i)}</strong>
+                            <span class="traffic-badge ${trafficClass(r.priority_score)}">Score ${(r.priority_score||0).toFixed(1)}</span>
+                        </div>
+                        <div style="font-size:11px; opacity:.85; display:flex; gap:12px; flex-wrap:wrap; margin-top:4px;">
+                            <span>🚗 ${(r.resource_type||'Recurso')}</span>
+                            <span>📏 ${(r.distance_km||0).toFixed(1)} km</span>
+                            <span>⏱️ ${(r.eta_min||0).toFixed(1)} min</span>
+                            <span>${r.status||''}</span>
+                            ${r.raw_geometry && r.raw_geometry.provider? `<span style='opacity:.7;'>${r.raw_geometry.provider}</span>`:''}
+                        </div>`;
+                    div.onclick = ()=>{ if(routeLayers[i]) { map.fitBounds(routeLayers[i].getBounds(), {padding:[40,40]}); routeLayers[i].openPopup(); }};
+                    cont.appendChild(div);
+                });
+            }
+
+            function trafficClass(score){
+                if(score < 10) return 'libre';
+                if(score < 30) return 'moderado';
+                return 'congestionado';
+            }
+
+            async function recalc(){
+                document.getElementById('btn-recalc').disabled = true;
+                try {
+                    const res = await fetch(`/api/routes/${EMERGENCY.id}/`);
+                    const data = await res.json();
+                    if(data.success){
+                        const newRoutes = (data.routes||[]).map(r=>({
+                            resource_id: r.resource_id,
+                            resource_type: r.resource_type,
+                            distance_km: parseFloat(r.distance)||0,
+                            eta_min: parseFloat(r.duration)||0,
+                            priority_score: r.score,
+                            status: r.is_primary? 'activa':'activa',
+                            coordinates: (r.geometry && r.geometry.coordinates)? r.geometry.coordinates.map(c=>[c[1],c[0]]):[],
+                            raw_geometry: r.geometry || {}
+                        }));
+                        // Reset progress related state
+                        primaryRouteCumulative = null;
+                        primaryTrackedId = null;
+                        if(progressDot){ map.removeLayer(progressDot); progressDot=null; }
+                        progressHistory = [];
+                        updateSparkline();
+                        renderRoutes(newRoutes);
+                        buildRouteCards(newRoutes);
+                    }
+                } catch(e){ console.error(e); }
+                document.getElementById('btn-recalc').disabled = false;
+            }
+
+            async function activateGreenWave(){
+                const btn = document.getElementById('btn-green-wave'); if(!btn) return;
+                btn.disabled = true; btn.textContent = '⏳...';
+                try {
+                    const res = await fetch(`/api/green-wave/${EMERGENCY.id}/`, {method:'POST', headers:{'X-CSRFToken': getCookie('csrftoken')}});
+                    const data = await res.json();
+                    if(data.success){
+                        document.getElementById('gw-indicator').className='gw-indicator gw-on';
+                        document.getElementById('gw-indicator').textContent='🚦 Onda Verde ACTIVA';
+                        if(routeLayers[0]) routeLayers[0].setStyle({color:'#22c55e'});
+                    }
+                } catch(e){ console.error(e); }
+            }
+
+            function getCookie(name){
+                const value = `; ${document.cookie}`; const parts = value.split(`; ${name}=`); if(parts.length===2) return parts.pop().split(';').shift();
+            }
+
+                    // Interpolación suave: almacenamos última y próxima posición con timestamps
+                    const trackingState = {}; // id -> { last:{lat,lng,time}, target:{lat,lng,time} }
+
+                    async function pollTracking(){
+                        try {
+                            const res = await fetch('/api/tracking/');
+                            const data = await res.json();
+                            const relevant = (data.tracking_data||[]).filter(t=>t.emergency_id===EMERGENCY.id);
+                            prepareTrackingInterpolation(relevant);
+                            updateTrafficSummary(relevant);
+                            applyDynamicRouteTraffic(relevant);
+                        } catch(e){ console.warn('Tracking error', e); }
+                    }
+
+                    function prepareTrackingInterpolation(entries){
+                        const now = performance.now();
+                        entries.forEach(e=>{
+                            const pos = e.current_position;
+                            if(!pos) return;
+                            if(!trackingState[e.id]){
+                                trackingState[e.id] = { last:{lat:pos[0], lng:pos[1], time:now}, target:{lat:pos[0], lng:pos[1], time:now+10000} };
+                            } else {
+                                const st = trackingState[e.id];
+                                st.last = { ...st.target }; // previous target becomes last
+                                st.target = { lat:pos[0], lng:pos[1], time: now + TRACK_POLL_INTERVAL }; // next  interval
+                            }
+                        });
+                        updateTrackingMarkers(entries);
+                    }
+
+            function updateTrafficSummary(entries){
+                if(!entries.length){ document.getElementById('traffic-summary').textContent=''; return; }
+                const worst = entries.reduce((a,b)=> (prio(b.traffic_level)>prio(a.traffic_level)? b:a));
+                document.getElementById('traffic-summary').innerHTML = `<span class="traffic-badge ${worst.traffic_level}">${worst.traffic_label}</span>`;
+            }
+            function prio(level){ return level==='congestionado'?3: level==='moderado'?2:1; }
+
+                    function updateTrackingMarkers(entries){
+                        const seen = new Set();
+                        entries.forEach(e=>{
+                            seen.add(e.id);
+                            const pos = e.current_position;
+                            if(!trackingMarkers[e.id]){
+                                const html = `<div class=\"tracking-marker ${e.is_code_red? 'code-red':''} ${e.onda_verde? 'green-wave':''}\" title=\"${e.name}\">${e.type==='agent'?'👮':'🚓'}</div>`;
+                                trackingMarkers[e.id] = L.marker(pos,{icon:L.divIcon({className:'', html:html, iconSize:[20,20]})}).addTo(map)
+                                    .bindPopup(`<strong>${e.name}</strong><br/>ETA ${e.eta_minutes} min<br/><span class='traffic-badge ${e.traffic_level}'>${e.traffic_label}</span>`);
+                            } else {
+                                // immediate reposition? we interpolate instead, so only popup content update
+                                const popup = trackingMarkers[e.id].getPopup();
+                                if(popup){ popup.setContent(`<strong>${e.name}</strong><br/>ETA ${e.eta_minutes} min<br/><span class='traffic-badge ${e.traffic_level}'>${e.traffic_label}</span>`); }
+                            }
+                        });
+                        Object.keys(trackingMarkers).forEach(id=>{ if(!seen.has(id)){ map.removeLayer(trackingMarkers[id]); delete trackingMarkers[id]; delete trackingState[id]; }});
+                    }
+
+                    const TRACK_POLL_INTERVAL = 10000; // ms
+                    const ANIM_FRAME_MS = 1000/30; // 30fps
+                    function animate(){
+                        const now = performance.now();
+                        Object.keys(trackingState).forEach(id=>{
+                            const st = trackingState[id];
+                                const {last, target} = st;
+                                const span = target.time - last.time;
+                                const t = span<=0 ? 1 : Math.min(1, (now - last.time)/span);
+                                const lat = last.lat + (target.lat - last.lat)*t;
+                                const lng = last.lng + (target.lng - last.lng)*t;
+                                let current = [lat,lng];
+                                if(id === primaryTrackedId && primaryRouteCumulative){
+                                    const proj = projectPointOnPrimaryRoute(current);
+                                    if(proj) current = proj.latlng;
+                                }
+                                if(trackingMarkers[id]) trackingMarkers[id].setLatLng(current);
+                                if(id === primaryTrackedId){ updateProgressDot(current); }
+                        });
+                        animatePrimaryStroke(now);
+                        requestAnimationFrame(animate);
+                    }
+                    requestAnimationFrame(animate);
+
+                    function applyDynamicRouteTraffic(entries){
+                        // Map entries by resource_id (vehicle_*) to style polyline color shade
+                        const trafficColorMap = {
+                            'libre':'#22c55e',
+                            'moderado':'#f59e0b',
+                            'congestionado':'#dc2626'
+                        };
+                        entries.forEach(e=>{
+                            const routeIdx = ROUTES.findIndex(r=> r.resource_id === e.id);
+                            if(routeIdx>=0 && routeLayers[routeIdx]){
+                                const base = routeIdx===0? '#dc2626': routeIdx===1? '#f59e0b':'#16a34a';
+                                const trafficColor = trafficColorMap[e.traffic_level] || base;
+                                routeLayers[routeIdx].setStyle({color: trafficColor, opacity: e.traffic_level==='congestionado'?0.9:0.75, weight: routeIdx===0?7:5});
+                            }
+                        });
+                    }
+
+                    function startTracking(){
+                        pollTracking();
+                        trackingTimer = setInterval(pollTracking, TRACK_POLL_INTERVAL);
+                    }
+
+            // --- Primary route progress dot implementation ---
+            let primaryRouteCumulative = null; // {points:[[lat,lng],...], cum:[0,...], total: number}
+            let progressDot = null; // Leaflet marker for progress along route
+            let primaryTrackedId = null; // id of resource assigned to primary route if determinable
+            let animatedPrimaryPathEl = null; // SVG path element for primary route animation
+            let progressHistory = []; // {t:timestamp, ratio}
+            const PROGRESS_HISTORY_MAX = 120; // keep last 120 samples (~2 min at 1s)
+            const routeCumulativeMap = {}; // resource_id -> cumulative object
+
+            function buildPrimaryRouteCumulative(){
+                try {
+                    const pts = ROUTES[0].coordinates;
+                    let cum = [0];
+                    for(let i=1;i<pts.length;i++){
+                        cum[i] = cum[i-1] + haversine(pts[i-1], pts[i]);
+                    }
+                    primaryRouteCumulative = {points: pts, cum, total: cum[cum.length-1]};
+                    // build for all
+                    ROUTES.forEach(r=>{
+                        if(!r.coordinates || r.coordinates.length<2) return;
+                        let c=[0];
+                        for(let i=1;i<r.coordinates.length;i++) c[i] = c[i-1] + haversine(r.coordinates[i-1], r.coordinates[i]);
+                        routeCumulativeMap[r.resource_id] = {points:r.coordinates, cum:c, total:c[c.length-1]};
+                    });
+                } catch(e){ console.warn('Error building cumulative distance', e); }
+            }
+
+            function haversine(a,b){
+                const R=6371000; // m
+                const toRad = d=> d*Math.PI/180;
+                const dLat = toRad(b[0]-a[0]);
+                const dLon = toRad(b[1]-a[1]);
+                const lat1 = toRad(a[0]);
+                const lat2 = toRad(b[0]);
+                const h = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+                return 2*R*Math.asin(Math.sqrt(h));
+            }
+
+            function updatePrimaryTrackedId(entries){
+                if(primaryTrackedId) return; // set only once for now
+                // Heuristic: first vehicle with is_code_red or first vehicle entry
+                const veh = entries.find(e=> e.type==='vehicle' && e.emergency_id===EMERGENCY.id && e.is_code_red) ||
+                             entries.find(e=> e.type==='vehicle' && e.emergency_id===EMERGENCY.id);
+                if(veh) primaryTrackedId = veh.id;
+            }
+
+            function projectPointOnPrimaryRoute(latlng){
+                if(!primaryRouteCumulative) return null;
+                // naive linear search (route lengths likely small). Could binary search segments.
+                let best = {d: Infinity, idx:0, t:0, distAlong:0};
+                const p = toPoint(latlng);
+                for(let i=0;i<primaryRouteCumulative.points.length-1;i++){
+                    const a = toPoint(primaryRouteCumulative.points[i]);
+                    const b = toPoint(primaryRouteCumulative.points[i+1]);
+                    const ab = {x:b.x-a.x, y:b.y-a.y};
+                    const ap = {x:p.x-a.x, y:p.y-a.y};
+                    const ab2 = ab.x*ab.x + ab.y*ab.y;
+                    let t = ab2===0?0: (ap.x*ab.x + ap.y*ab.y)/ab2;
+                    t = Math.max(0, Math.min(1, t));
+                    const proj = {x: a.x + ab.x*t, y: a.y + ab.y*t};
+                    const d = (p.x-proj.x)**2 + (p.y-proj.y)**2;
+                    if(d < best.d){
+                        // compute distance along
+                        const segmentLength = primaryRouteCumulative.cum[i] + haversine(primaryRouteCumulative.points[i], primaryRouteCumulative.points[i+1])*t;
+                        best = {d, idx:i, t, distAlong: segmentLength};
+                    }
+                }
+                const ratio = best.distAlong / primaryRouteCumulative.total;
+                return {ratio, latlng: interpolateLatLng(primaryRouteCumulative.points[best.idx], primaryRouteCumulative.points[best.idx+1], best.t)};
+            }
+
+            function toPoint(ll){ // simple equirectangular projection for small distances
+                const x = ll[1]*Math.cos(ll[0]*Math.PI/180);
+                const y = ll[0];
+                return {x,y};
+            }
+            function interpolateLatLng(a,b,t){ return [a[0] + (b[0]-a[0])*t, a[1] + (b[1]-a[1])*t]; }
+
+            function ensureProgressDot(){
+                if(!progressDot){
+                    progressDot = L.circleMarker(ROUTES[0].coordinates[0], {radius:7, weight:2, color:'#fff', fillColor:'#2563eb', fillOpacity:0.9}).addTo(map)
+                        .bindPopup('Progreso de la unidad primaria');
+                }
+            }
+
+            function updateProgressDot(currentLatLng){
+                if(!primaryRouteCumulative || !ROUTES.length) return;
+                ensureProgressDot();
+                const proj = projectPointOnPrimaryRoute(currentLatLng);
+                if(!proj) return;
+                progressDot.setLatLng(proj.latlng);
+                const pct = (proj.ratio*100).toFixed(1);
+                const popup = progressDot.getPopup();
+                if(popup){ popup.setContent(`Progreso ruta primaria: ${pct}%`); }
+                updateProgressPanel(proj.ratio, currentLatLng);
+            }
+
+            // extend existing functions to hook primary tracking id
+            const _origPrepareTrackingInterpolation = prepareTrackingInterpolation;
+            prepareTrackingInterpolation = function(entries){
+                updatePrimaryTrackedId(entries);
+                _origPrepareTrackingInterpolation(entries);
+            }
+
+            // --- Green wave intersections ---
+            let intersectionMarkers = {}; // key: name
+            const TRAFFIC_STATUS_INTERVAL = 15000; // 15s
+            function fetchTrafficStatus(){
+                fetch('/api/traffic-status/')
+                  .then(r=>r.json())
+                  .then(data=>{
+                      if(!data.success) return;
+                      renderIntersections(data.waves_data||[]);
+                  })
+                  .catch(err=> console.warn('traffic-status error', err));
+            }
+            function renderIntersections(waves){
+                // keep only intersections belonging to wave whose target_position close to this emergency
+                waves.forEach(w=>{
+                    const target = w.target_position; // [lat,lon]
+                    if(!target) return;
+                    const distToEmergency = haversine([EMERGENCY.lat, EMERGENCY.lon],[target[0], target[1]]);
+                    if(distToEmergency > 1500) return; // only waves up to 1.5km relevant
+                    (w.intersections||[]).forEach(intx=>{
+                        const key = intx.name;
+                        const latlng = [intx.lat, intx.lon];
+                        const statusColor = intersectionColor(intx);
+                        if(!intersectionMarkers[key]){
+                            intersectionMarkers[key] = L.circleMarker(latlng, {radius:5, color:statusColor, weight:2, fillColor:statusColor, fillOpacity:0.8})
+                               .addTo(map)
+                               .bindPopup(buildIntersectionPopup(intx));
+                        } else {
+                            intersectionMarkers[key].setStyle({color:statusColor, fillColor:statusColor});
+                            const popup = intersectionMarkers[key].getPopup();
+                            if(popup) popup.setContent(buildIntersectionPopup(intx));
+                        }
+                    });
+                    updateGreenWaveTimeline(waves);
+                });
+                // Could purge old markers if not in waves; skipping for simplicity now
+            }
+            function intersectionColor(intx){
+                const now = Date.now();
+                const gs = Date.parse(intx.green_start);
+                const ge = Date.parse(intx.green_end);
+                if(now >= gs && now <= ge) return '#22c55e'; // active green
+                if(now < gs && gs - now < 15000) return '#f59e0b'; // upcoming soon
+                return '#ef4444';
+            }
+            function buildIntersectionPopup(intx){
+                return `<strong>${intx.name}</strong><br/>Ventana verde: ${formatTime(intx.green_start)} - ${formatTime(intx.green_end)}`;
+            }
+            function formatTime(t){ try { const d = new Date(t); return d.toLocaleTimeString(); } catch(e){ return t; } }
+
+            // schedule traffic status fetching
+            setInterval(fetchTrafficStatus, TRAFFIC_STATUS_INTERVAL);
+            // initial fetch after map init inside DOMContentLoaded
+
+            // Animated primary stroke function
+            let strokeAnimStart = null;
+            function animatePrimaryStroke(now){
+                if(!animatedPrimaryPathEl) return;
+                if(!strokeAnimStart) strokeAnimStart = now;
+                const period = 4000; // ms for full cycle
+                const t = ((now - strokeAnimStart) % period)/period; // 0..1
+                const dashOffset = -t * 200; // arbitrary scaling for motion speed
+                animatedPrimaryPathEl.style.strokeDashoffset = dashOffset;
+            }
+
+            // --- Progress panel updates ---
+            function updateProgressPanel(ratio, currentLatLng){
+                const label = document.getElementById('progress-label');
+                const bar = document.getElementById('progress-bar');
+                if(!label || !bar || !primaryRouteCumulative) return;
+                const pct = Math.min(100, Math.max(0, ratio*100));
+                bar.style.width = pct + '%';
+                label.textContent = pct.toFixed(1) + '%';
+                pushProgressSample(ratio);
+                updateSparkline();
+                // Distance stats
+                const total_m = primaryRouteCumulative.total; // metros
+                const traveled_m = total_m * ratio;
+                const remaining_m = Math.max(0, total_m - traveled_m);
+                const distEl = document.getElementById('stat-distance');
+                if(distEl) distEl.textContent = `Distancia: ${(traveled_m/1000).toFixed(2)} / ${(total_m/1000).toFixed(2)} km (${(remaining_m/1000).toFixed(2)} km faltan)`;
+                // Estimate speed from trackingState primary id
+                if(primaryTrackedId && trackingState[primaryTrackedId]){
+                    const st = trackingState[primaryTrackedId];
+                    const dt = (st.target.time - st.last.time)/1000; // s
+                    let segDist = 0;
+                    if(dt>0){ segDist = haversine([st.last.lat, st.last.lng],[st.target.lat, st.target.lng]); }
+                    const speedKmh = dt>0 ? (segDist/1000)/(dt/3600) : 0;
+                    const speedEl = document.getElementById('stat-speed');
+                    if(speedEl) speedEl.textContent = `Velocidad: ${speedKmh.toFixed(1)} km/h`;
+                    // ETA remaining (simple) = remaining distance / speed
+                    const etaEl = document.getElementById('stat-eta');
+                    if(etaEl){
+                        if(speedKmh > 1){
+                            const etaMin = (remaining_m/1000)/speedKmh*60;
+                            etaEl.textContent = `ETA: ${etaMin.toFixed(1)} min`;
+                        } else {
+                            etaEl.textContent = 'ETA: recalculando...';
+                        }
+                    }
+                }
+                if(pct >= 99.5){ markArrival(); }
+            }
+            function markArrival(){
+                const bar = document.getElementById('progress-bar');
+                const label = document.getElementById('progress-label');
+                if(bar){ bar.style.background='linear-gradient(90deg,#16a34a,#22c55e)'; }
+                if(label){ label.textContent='100% (Llegado)'; }
+            }
+
+            function pushProgressSample(ratio){
+                const now = Date.now();
+                if(progressHistory.length && now - progressHistory[progressHistory.length-1].t < 1000){ return; }
+                progressHistory.push({t: now, ratio});
+                if(progressHistory.length > PROGRESS_HISTORY_MAX){
+                    progressHistory.splice(0, progressHistory.length - PROGRESS_HISTORY_MAX);
+                }
+            }
+            function updateSparkline(){
+                const canvas = document.getElementById('progress-spark');
+                if(!canvas) return; const ctx = canvas.getContext('2d');
+                ctx.clearRect(0,0,canvas.width, canvas.height);
+                if(progressHistory.length < 2){
+                    ctx.fillStyle='#374151';
+                    ctx.font='10px sans-serif';
+                    ctx.fillText('—', 4, 16);
+                    return; }
+                const values = progressHistory.map(p=>p.ratio);
+                const minV = Math.min(...values);
+                const maxV = Math.max(...values);
+                const span = Math.max(0.0001, maxV - minV);
+                ctx.strokeStyle='#10b981';
+                ctx.lineWidth=1.5;
+                ctx.beginPath();
+                values.forEach((v,i)=>{
+                    const x = (i/(values.length-1))* (canvas.width-4) + 2;
+                    const y = canvas.height - 2 - ((v - minV)/span)*(canvas.height-6);
+                    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+                });
+                ctx.stroke();
+                // Current marker
+                const last = values[values.length-1];
+                const lx = (canvas.width-2);
+                const ly = canvas.height - 2 - ((last - minV)/span)*(canvas.height-6);
+                ctx.fillStyle='#fbbf24';
+                ctx.beginPath(); ctx.arc(lx, ly, 2.5, 0, Math.PI*2); ctx.fill();
+            }
+
+            // ---- Green Wave Timeline ----
+            function updateGreenWaveTimeline(allWaves){
+                const body = document.getElementById('gw-timeline-body');
+                const tsLbl = document.getElementById('gw-last-update');
+                if(tsLbl) tsLbl.textContent = new Date().toLocaleTimeString();
+                if(!body) return;
+                const relevant = [];
+                allWaves.forEach(w=>{
+                    const target = w.target_position;
+                    if(!target) return;
+                    const distToEmergency = haversine([EMERGENCY.lat, EMERGENCY.lon],[target[0], target[1]]);
+                    if(distToEmergency <= 1500){
+                        (w.intersections||[]).forEach(i=> relevant.push(i));
+                    }
+                });
+                if(!relevant.length){ body.innerHTML = '<div style="font-size:11px; opacity:.6;">Sin intersecciones cercanas.</div>'; return; }
+                relevant.sort((a,b)=> new Date(a.green_start) - new Date(b.green_start));
+                body.innerHTML = '';
+                const now = Date.now();
+                relevant.forEach(intx=>{
+                    const gs = Date.parse(intx.green_start);
+                    const ge = Date.parse(intx.green_end);
+                    const active = now>=gs && now<=ge;
+                    const soon = !active && gs>now && (gs-now)<30000;
+                    const cls = active? 'background:#065f46; color:#a7f3d0; border:1px solid #10b981;' : soon? 'background:#78350f; color:#fcd34d; border:1px solid #fbbf24;' : 'background:#3f0d0d; color:#fecaca; border:1px solid #dc2626;';
+                    const etaToStart = gs>now? Math.round((gs-now)/1000):0;
+                    const dur = Math.max(1, Math.round((ge-gs)/1000));
+                    const div = document.createElement('div');
+                    div.style.cssText = `min-width:140px; padding:6px 8px; border-radius:6px; font-size:10px; ${cls}`;
+                    div.innerHTML = `<strong style='font-size:10px;'>${intx.name}</strong><br/>${formatTime(intx.green_start)} - ${formatTime(intx.green_end)}<br/>${active? 'ACTIVA' : (soon? 'En '+etaToStart+'s':'Pendiente')} · ${dur}s verde`;
+                    body.appendChild(div);
+                });
+            }
+
+            document.addEventListener('DOMContentLoaded', ()=>{
+                if(EMERGENCY.lat && EMERGENCY.lon){
+                    initMap();
+                } else {
+                    // Fallback: intentar centrar con primera ruta disponible
+                    if(ROUTES.length && ROUTES[0].coordinates && ROUTES[0].coordinates.length){
+                        EMERGENCY.lat = ROUTES[0].coordinates[ROUTES[0].coordinates.length-1][0];
+                        EMERGENCY.lon = ROUTES[0].coordinates[ROUTES[0].coordinates.length-1][1];
+                        initMap();
+                    } else {
+                        const mapDiv = document.getElementById('emergency-map');
+                        if(mapDiv){
+                            mapDiv.innerHTML = '<div style="padding:20px; font-size:13px; color:#9ca3af; text-align:center;">No hay coordenadas para esta emergencia todavía.</div>';
+                        }
+                    }
+                }
+                if('{{ emergency.status }}' !== 'resuelta'){
+                    document.getElementById('btn-recalc').addEventListener('click', recalc);
+                }
+                const gwBtn = document.getElementById('btn-green-wave'); if(gwBtn) gwBtn.addEventListener('click', activateGreenWave);
+                document.getElementById('btn-center').addEventListener('click', ()=> map && map.setView([EMERGENCY.lat, EMERGENCY.lon], 15));
+                if('{{ emergency.status }}' === 'resuelta'){
+                    // Evitar iniciar tracking / intervals
+                    if(typeof trackingTimer !== 'undefined' && trackingTimer){ clearInterval(trackingTimer); trackingTimer=null; }
+                }
+                initMobilityPolling();
+            });
+
+            // === Per-resource mobility polling ===
+            let mobilityInterval = null;
+            const MOBILITY_POLL_MS = 12000; // 12s
+            const mobilityMarkers = {}; // resource_id -> marker
+
+            function initMobilityPolling(){
+                if('{{ emergency.status }}' === 'resuelta'){
+                    fetchMobilityOnce();
+                    return;
+                }
+                fetchMobilityOnce();
+                mobilityInterval = setInterval(fetchMobilityOnce, MOBILITY_POLL_MS);
+            }
+
+            async function fetchMobilityOnce(){
+                try {
+                    const res = await fetch(`/api/mobility/${EMERGENCY.id}/`);
+                    const data = await res.json();
+                    if(!data.success){ return; }
+                    renderMobility(data.resources||[], data);
+                    const tsLbl = document.getElementById('mobility-last-update');
+                    if(tsLbl) tsLbl.textContent = new Date().toLocaleTimeString();
+                    if(data.frozen && mobilityInterval){ clearInterval(mobilityInterval); mobilityInterval=null; }
+                    // Fallback: si no tenemos seguimiento real (tracking) usar primer recurso para animar progreso principal
+                    tryMobilityPrimaryProgress(data.resources||[]);
+                } catch(err){ console.warn('mobility error', err); }
+            }
+
+            function renderMobility(resources, meta){
+                const cont = document.getElementById('mobility-resources');
+                const empty = document.getElementById('mobility-empty');
+                if(!cont) return;
+                if(!resources.length){ cont.innerHTML=''; empty.style.display='block'; return; } else { empty.style.display='none'; }
+                cont.innerHTML = '';
+                // aggregated progress = promedio de recursos
+                const progresses = resources.map(r=> r.progress||0);
+                const aggregateRatio = progresses.length? (progresses.reduce((a,b)=>a+b,0)/progresses.length):0;
+                updateAggregateProgress(aggregateRatio, resources);
+                resources.forEach(r=>{
+                    const pct = (r.progress*100).toFixed(1);
+                    const barColor = r.progress>=1? '#22c55e' : (r.traffic.level==='congestionado'? '#dc2626': r.traffic.level==='moderado'? '#f59e0b':'#2563eb');
+                    const intersectionsHtml = buildPerResourceTimeline(r);
+                    const etaTxt = r.progress>=1? 'Llegado' : (r.eta_minutes? `${r.eta_minutes.toFixed(1)} min`: '—');
+                    const distanceTxt = `${(r.distance_km||0).toFixed(2)} km`;
+                    const remainingTxt = r.progress>=1? '0 km' : `${(r.distance_remaining_km||0).toFixed(2)} km`;
+                    const trafficBadge = `<span class="traffic-badge ${r.traffic.level}" title="Factor ${(r.traffic.factor).toFixed(2)}">${r.traffic.label}</span>`;
+                    const frozenBadge = r.frozen? '<span style="font-size:10px; background:#1e3a8a; color:#93c5fd; padding:2px 6px; border-radius:4px;">Frozen</span>' : '';
+                    const card = document.createElement('div');
+                    card.className='card';
+                    card.style.padding='10px';
+                    card.innerHTML = `
+                        <div style='display:flex; justify-content:space-between; align-items:center; gap:6px;'>
+                            <strong style="font-size:12px;">${escapeHtml(r.name)}</strong>
+                            <div style='display:flex; gap:4px; align-items:center;'>${trafficBadge}${frozenBadge}</div>
+                        </div>
+                        <div style='margin-top:4px; font-size:11px; display:flex; flex-wrap:wrap; gap:8px; opacity:.85;'>
+                            <span>Progreso: ${pct}%</span>
+                            <span>ETA: ${etaTxt}</span>
+                            <span>Restante: ${remainingTxt}</span>
+                        </div>
+                        <div style='position:relative; height:8px; background:#1f2937; border-radius:4px; overflow:hidden; margin:6px 0 4px;'>
+                            <div style='position:absolute; left:0; top:0; bottom:0; width:${pct}%; background:${barColor}; transition:width .4s ease;'></div>
+                        </div>
+                        <div style='font-size:10px; opacity:.65;'>Total ${distanceTxt} · Vel ${ (r.speed_kmh||0).toFixed(1) } km/h</div>
+                        ${intersectionsHtml}
+                    `;
+                    cont.appendChild(card);
+                    updateMobilityMarker(r);
+                });
+            }
+
+            // Per-resource green wave timeline bar
+            function buildPerResourceTimeline(resource){
+                const list = resource.intersections||[];
+                if(!list.length) return '<div style="font-size:10px; opacity:.5; margin-top:6px;">Sin intersecciones próximas.</div>';
+                const now = Date.now();
+                // Tomamos hasta 6 y generamos barra horizontal proporcional al tiempo relativo
+                const times = list.map(i=>({
+                    name: i.name,
+                    gs: Date.parse(i.green_start),
+                    ge: Date.parse(i.green_end),
+                    dur: Date.parse(i.green_end) - Date.parse(i.green_start),
+                    priority: i.priority
+                })).sort((a,b)=> a.gs - b.gs).slice(0,6);
+                const minStart = Math.min(...times.map(t=>t.gs));
+                const maxEnd = Math.max(...times.map(t=>t.ge));
+                const span = Math.max(1, maxEnd - minStart);
+                const segments = times.map(t=>{
+                    const offsetPct = ((t.gs - minStart)/span)*100;
+                    const widthPct = Math.max(3, (t.dur/span)*100);
+                    const active = now>=t.gs && now<=t.ge;
+                    const soon = !active && t.gs>now && (t.gs-now)<20000;
+                    const clr = active? '#16a34a' : soon? '#f59e0b' : '#dc2626';
+                    const opacity = t.priority===1?1:0.75;
+                    return `<div title='${escapeHtml(t.name)}' style='position:absolute; left:${offsetPct.toFixed(2)}%; width:${widthPct.toFixed(2)}%; top:2px; bottom:2px; background:${clr}; opacity:${opacity}; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:8px; color:#fff;'>${active?'●':''}</div>`;
+                }).join('');
+                return `<div style='margin-top:6px;'>
+                    <div style='position:relative; height:14px; background:#1f2937; border:1px solid #243042; border-radius:4px; overflow:hidden;'>${segments}</div>
+                    <div style='display:flex; gap:6px; flex-wrap:wrap; margin-top:4px; font-size:9px; opacity:.65;'>
+                        <span style='color:#16a34a'>Activa</span>
+                        <span style='color:#f59e0b'>Próx</span>
+                        <span style='color:#dc2626'>Fuera</span>
+                    </div>
+                </div>`;
+            }
+
+            function escapeHtml(str){
+                return (str||'').replace(/[&<>"]/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+            }
+
+            // === Fallback de progreso principal basado en movilidad ===
+            let mobilityPrevRatio = null;
+            let mobilityTargetRatio = null;
+            let mobilityAnimStart = null;
+            let mobilityAnimDuration = 10000; // default ~10s suave entre polls
+            let aggregatePrevRatio = null, aggregateTargetRatio = null, aggregateAnimStart = null;
+
+            function tryMobilityPrimaryProgress(resources){
+                if(!ROUTES.length || !resources.length) return;
+                const primaryResourceId = ROUTES[0].resource_id;
+                let chosen = resources.find(r=> r.resource_id === primaryResourceId) || resources[0];
+                const ratio = clamp01(chosen.progress||0);
+                if(mobilityPrevRatio===null){ mobilityPrevRatio=ratio; mobilityTargetRatio=ratio; mobilityAnimStart=performance.now(); placeMobilityProgress(ratio); }
+                else { mobilityPrevRatio=getCurrentMobilityAnimatedRatio(); mobilityTargetRatio=ratio; mobilityAnimStart=performance.now(); mobilityAnimDuration=Math.min(MOBILITY_POLL_MS*0.9,15000);}            }
+
+            function updateAggregateProgress(ratio, resources){
+                ratio = clamp01(ratio);
+                if(aggregatePrevRatio===null){ aggregatePrevRatio=ratio; aggregateTargetRatio=ratio; aggregateAnimStart=performance.now(); applyAggregateRatio(ratio, resources); }
+                else { aggregatePrevRatio=getCurrentAggregateAnimatedRatio(); aggregateTargetRatio=ratio; aggregateAnimStart=performance.now(); }
+            }
+
+            function getCurrentAggregateAnimatedRatio(){
+                if(aggregatePrevRatio===null || aggregateTargetRatio===null || aggregateAnimStart===null) return 0;
+                const now = performance.now();
+                const t = Math.min(1, (now - aggregateAnimStart)/mobilityAnimDuration);
+                return aggregatePrevRatio + (aggregateTargetRatio - aggregatePrevRatio)*easeInOutQuad(t);
+            }
+
+            function applyAggregateRatio(ratio, resources){
+                // Actualiza barra global usando 'ratio', pero mantiene distancia/velocidad estimadas del recurso primario.
+                const bar = document.getElementById('progress-bar');
+                const label = document.getElementById('progress-label');
+                if(bar) bar.style.width = (ratio*100).toFixed(1)+'%';
+                if(label) label.textContent = (ratio*100).toFixed(1)+'%';
+                const resEl = document.getElementById('stat-resources');
+                if(resEl) resEl.textContent = `Recursos en ruta: ${resources.filter(r=> r.progress<1).length}/${resources.length}`;
+                if(ratio>=0.999) markArrival();
+            }
+
+            function clamp01(x){ return x<0?0:x>1?1:x; }
+
+            function getCurrentMobilityAnimatedRatio(){
+                if(mobilityPrevRatio===null || mobilityTargetRatio===null || mobilityAnimStart===null) return 0;
+                const now = performance.now();
+                const t = Math.min(1, (now - mobilityAnimStart)/mobilityAnimDuration);
+                return mobilityPrevRatio + (mobilityTargetRatio - mobilityPrevRatio)*easeInOutQuad(t);
+            }
+
+            function easeInOutQuad(t){ return t<0.5 ? 2*t*t : -1+(4-2*t)*t; }
+
+            function placeMobilityProgress(ratio){
+                if(!primaryRouteCumulative){ return; }
+                const ll = getLatLngAtPrimaryRatio(ratio);
+                if(!ll) return;
+                // update progress panel + marker
+                ensureProgressDot();
+                progressDot.setLatLng(ll);
+                updateProgressPanel(ratio, ll);
+            }
+
+            function getLatLngAtPrimaryRatio(r){
+                if(!primaryRouteCumulative) return null;
+                const target = primaryRouteCumulative.total * r;
+                const pts = primaryRouteCumulative.points;
+                for(let i=1;i<pts.length;i++){
+                    const distPrev = primaryRouteCumulative.cum[i-1];
+                    const distCurr = primaryRouteCumulative.cum[i];
+                    if(target <= distCurr){
+                        const segLen = distCurr - distPrev;
+                        const localT = segLen>0 ? (target - distPrev)/segLen : 0;
+                        return [
+                            pts[i-1][0] + (pts[i][0]-pts[i-1][0])*localT,
+                            pts[i-1][1] + (pts[i][1]-pts[i-1][1])*localT
+                        ];
+                    }
+                }
+                return pts[pts.length-1];
+            }
+
+            // Integrar al bucle de animación principal
+            const _origAnimate = animate;
+            animate = function(){
+                _origAnimate();
+                // Progreso primario (dot) si no tracking real
+                if(!primaryTrackedId && mobilityTargetRatio!==null){
+                    placeMobilityProgress(getCurrentMobilityAnimatedRatio());
+                }
+                // Progreso agregado siempre que exista agregado
+                if(aggregateTargetRatio!==null){
+                    applyAggregateRatio(getCurrentAggregateAnimatedRatio(), []);
+                }
+            }
+
+            function iconForResource(name){
+                const n = (name||'').toLowerCase();
+                if(n.includes('bombero') || n.includes('camión')) return '🚒';
+                if(n.includes('ambul') || n.includes('same')) return '🚑';
+                if(n.includes('patrull') || n.includes('polic') || n.includes('móvil') || n.includes('movil')) return '🚓';
+                if(n.includes('agente') || n.includes('oficial')) return '👮';
+                return '🚗';
+            }
+
+            function updateMobilityMarker(resource){
+                const rid = resource.resource_id;
+                const cum = routeCumulativeMap[rid];
+                if(!cum) return; // no geometry
+                const ratio = clamp01(resource.progress||0);
+                const latlng = getLatLngAlong(cum, ratio);
+                if(!latlng) return;
+                const iconHtml = `<div class='tracking-marker ${resource.progress>=1?'':'mobility-active'}' style='background:#fff;'>${iconForResource(resource.name)}</div>`;
+                if(!mobilityMarkers[rid]){
+                    mobilityMarkers[rid] = L.marker(latlng,{icon:L.divIcon({className:'', html:iconHtml, iconSize:[20,20]})}).addTo(map)
+                        .bindPopup(`<strong>${escapeHtml(resource.name)}</strong><br/>Progreso ${(ratio*100).toFixed(1)}%`);
+                } else {
+                    mobilityMarkers[rid].setLatLng(latlng);
+                    const popup = mobilityMarkers[rid].getPopup();
+                    if(popup) popup.setContent(`<strong>${escapeHtml(resource.name)}</strong><br/>Progreso ${(ratio*100).toFixed(1)}%`);
+                }
+            }
+
+            function getLatLngAlong(cumObj, ratio){
+                if(!cumObj) return null;
+                const target = cumObj.total * ratio;
+                const pts = cumObj.points;
+                for(let i=1;i<pts.length;i++){
+                    const d0 = cumObj.cum[i-1];
+                    const d1 = cumObj.cum[i];
+                    if(target <= d1){
+                        const seg = d1 - d0;
+                        const t = seg>0? (target-d0)/seg:0;
+                        return [ pts[i-1][0] + (pts[i][0]-pts[i-1][0])*t, pts[i-1][1] + (pts[i][1]-pts[i-1][1])*t ];
+                    }
+                }
+                return pts[pts.length-1];
+            }
+        </script>
 {% endblock %}

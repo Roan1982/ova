@@ -13,8 +13,18 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 import os
 
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    def load_dotenv(*args, **kwargs):
+        return False
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Cargar variables desde el archivo .env si está presente
+for dotenv_path in (BASE_DIR / '.env', BASE_DIR.parent / '.env'):
+    load_dotenv(dotenv_path, override=False)
 
 
 # Quick-start development settings - unsuitable for production
@@ -123,8 +133,25 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Configuración de Ollama (IA externa)
-OLLAMA_BASE_URL = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
+# Configuración de IA en la nube
+AI_PROVIDER = os.environ.get('AI_PROVIDER', 'openai')
+AI_TIMEOUT = int(os.environ.get('AI_TIMEOUT', '20'))
+AI_MAX_RETRIES = int(os.environ.get('AI_MAX_RETRIES', '3'))
+
+# OpenAI (por defecto)
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
+OPENAI_API_BASE = os.environ.get('OPENAI_API_BASE', 'https://api.openai.com/v1')
+
+# Servicios de ruteo externos
+OPENROUTE_API_KEY = os.environ.get('OPENROUTE_API_KEY')
+MAPBOX_API_KEY = os.environ.get('MAPBOX_API_KEY')
+ROUTING_MAX_RESULTS = int(os.environ.get('ROUTING_MAX_RESULTS', '6'))
+ROUTING_VEHICLE_CANDIDATES = int(os.environ.get('ROUTING_VEHICLE_CANDIDATES', '6'))
+ROUTING_AGENT_CANDIDATES = int(os.environ.get('ROUTING_AGENT_CANDIDATES', '4'))
+ROUTING_CACHE_SIZE = int(os.environ.get('ROUTING_CACHE_SIZE', '128'))
+OPENROUTE_BACKOFF_SECONDS = int(os.environ.get('OPENROUTE_BACKOFF_SECONDS', '120'))
+
+# Compatibilidad hacia atrás (Ollama opcional)
+OLLAMA_BASE_URL = os.environ.get('OLLAMA_BASE_URL')
 OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'gemma:4b')
-OLLAMA_TIMEOUT = int(os.environ.get('OLLAMA_TIMEOUT', '20'))
-OLLAMA_MAX_RETRIES = int(os.environ.get('OLLAMA_MAX_RETRIES', '3'))

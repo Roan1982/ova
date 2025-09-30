@@ -5,7 +5,7 @@ from .views import (
     agentes_list, unidades_por_fuerza, hospitales_list, facilities_list, dashboard,
     ai_status_view, calculate_routes_api, assign_optimal_resources, real_time_tracking,
     activate_green_wave_api, traffic_status_api, redistribute_resources_api,
-    route_details_api
+    route_details_api, news_api, weather_api, incidents_api, stored_routes_api, emergency_mobility_api
 )
 
 urlpatterns = [
@@ -34,4 +34,9 @@ urlpatterns = [
     path('api/green-wave/<int:emergency_id>/', activate_green_wave_api, name='activate_green_wave_api'),
     path('api/traffic-status/', traffic_status_api, name='traffic_status_api'),
     path('api/redistribute/', redistribute_resources_api, name='redistribute_resources_api'),
+    path('api/news/', news_api, name='news_api'),
+    path('api/weather/', weather_api, name='weather_api'),
+    path('api/stored-routes/<int:emergency_id>/', stored_routes_api, name='stored_routes_api'),
+    path('api/incidents/', incidents_api, name='incidents_api'),
+    path('api/mobility/<int:emergency_id>/', emergency_mobility_api, name='emergency_mobility_api'),
 ]

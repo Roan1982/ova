@@ -383,17 +383,35 @@ def get_ai_classification_with_response(description: str):
             'codigo': 'verde',
             'score': 1,
             'razones': ['Sin descripción proporcionada'],
-            'respuesta_ia': 'No se puede clasificar sin descripción del evento.'
+            'respuesta_ia': 'No se puede clasificar sin descripción del evento.',
+            'recursos': [{'tipo': 'patrulla', 'cantidad': 1}],
+            'recommended_resources': [{'tipo': 'patrulla', 'cantidad': 1}]
         }
     
     codigo, score, reasons, tipo = classify_emergency(description)
     respuesta_ia = generate_ia_response(description, tipo, codigo, score, reasons)
     
+    resource_recommendations = _infer_resource_recommendations(tipo, codigo)
+
     return {
         'tipo': tipo,
         'codigo': codigo,
         'score': score,
         'razones': reasons,
-        'respuesta_ia': respuesta_ia
+        'respuesta_ia': respuesta_ia,
+        'recursos': resource_recommendations,
+        'recommended_resources': resource_recommendations
     }
+
+
+def _infer_resource_recommendations(tipo: str, codigo: str):
+    """Devuelve una lista de recursos recomendados basada en tipo/código."""
+    mapping = {
+        'medico': 'ambulancia',
+        'bomberos': 'camión de bomberos',
+        'policial': 'patrulla'
+    }
+    recurso = mapping.get(tipo, 'patrulla')
+    cantidad = 2 if codigo == 'rojo' else 1
+    return [{'tipo': recurso, 'cantidad': cantidad}]
 

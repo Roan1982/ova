@@ -79,6 +79,19 @@
   100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
 }
 
+.green-wave-route {
+  stroke: #22c55e !important;
+  stroke-width: 6 !important;
+  filter: drop-shadow(0 0 8px rgba(34, 197, 94, 0.65));
+  animation: greenWavePulse 1.8s ease-in-out infinite;
+}
+
+@keyframes greenWavePulse {
+  0% { stroke-width: 5; filter: drop-shadow(0 0 4px rgba(34, 197, 94, 0.4)); }
+  50% { stroke-width: 7; filter: drop-shadow(0 0 12px rgba(34, 197, 94, 0.8)); }
+  100% { stroke-width: 5; filter: drop-shadow(0 0 4px rgba(34, 197, 94, 0.4)); }
+}
+
 /* Rutas en el mapa */
 .route-line {
   stroke-width: 4;
@@ -92,12 +105,147 @@
   animation: tracking-dash 1.5s linear infinite;
 }
 
+.tracking-dot-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tracking-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+}
+
+.code-red-glow {
+  box-shadow: 0 0 14px rgba(220, 38, 38, 0.85) !important;
+  animation: codeRedPulse 1.2s ease-in-out infinite;
+}
+
+.tracking-control {
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: #e2e8f0;
+  width: 260px;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.45);
+  font-size: 12px;
+}
+
+.tracking-control__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.tracking-status {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.18);
+  color: #34d399;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.tracking-status.paused {
+  background: rgba(248, 113, 113, 0.18);
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.45);
+}
+
+.tracking-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  margin-bottom: 6px;
+  opacity: 0.85;
+}
+
+.tracking-playback {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.tracking-btn {
+  flex: 1;
+  padding: 4px 0;
+  font-size: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(51, 65, 85, 0.85);
+  color: #f8fafc;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.tracking-btn:hover {
+  background: rgba(59, 130, 246, 0.45);
+  transform: translateY(-1px);
+}
+
+.tracking-slider {
+  width: 100%;
+  accent-color: #3b82f6;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+
+.tracking-timestamp {
+  font-size: 10px;
+  text-align: right;
+  opacity: 0.75;
+  margin-bottom: 6px;
+}
+
+.tracking-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tracking-legend .legend-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.tracking-legend .legend-pill .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.tracking-marker-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
 @keyframes route-dash {
   to { stroke-dashoffset: -20; }
 }
 
 @keyframes tracking-dash {
   to { stroke-dashoffset: -20; }
+}
+
+@keyframes codeRedPulse {
+  0% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.9; }
 }
 
 /* Botones de ruta en popups */
@@ -155,16 +303,16 @@
       <h2 style="margin: 0;">🗺️ Mapa Operativo CABA</h2>
       <!-- Controles del mapa compactos -->
       <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-        <button class="map-btn active" data-layer="emergencias" style="font-size: 11px; padding: 4px 8px;">🚨</button>
-        <button class="map-btn active" data-layer="agentes" style="font-size: 11px; padding: 4px 8px;">👮</button>
-        <button class="map-btn active" data-layer="instalaciones" style="font-size: 11px; padding: 4px 8px;">🏢</button>
-        <button class="map-btn active" data-layer="hospitales" style="font-size: 11px; padding: 4px 8px;">🏥</button>
-        <button class="map-btn active" data-layer="rutas" style="font-size: 11px; padding: 4px 8px;">🛣️</button>
-        <button class="map-btn" data-layer="comunas" style="font-size: 11px; padding: 4px 8px;">📍</button>
-        <button class="map-btn" id="btn-centrar" style="font-size: 11px; padding: 4px 8px;">🎯</button>
-        <button class="map-btn" id="btn-limpiar-rutas" style="font-size: 11px; padding: 4px 8px;">🧹</button>
-        <button class="map-btn" id="btn-redistribuir" style="font-size: 11px; padding: 4px 8px;">🔄</button>
-        <button class="map-btn" id="btn-test-routes" style="font-size: 11px; padding: 4px 8px;">🔍</button>
+  <button class="map-btn active" data-layer="emergencias" title="Mostrar/Ocultar Emergencias" aria-label="Mostrar u ocultar emergencias" style="font-size: 11px; padding: 4px 8px;">🚨<span class="btn-label" style="display:none;"> Emergencias</span></button>
+  <button class="map-btn active" data-layer="agentes" title="Mostrar/Ocultar Agentes" aria-label="Mostrar u ocultar agentes" style="font-size: 11px; padding: 4px 8px;">👮<span class="btn-label" style="display:none;"> Agentes</span></button>
+  <button class="map-btn active" data-layer="instalaciones" title="Mostrar/Ocultar Instalaciones" aria-label="Mostrar u ocultar instalaciones" style="font-size: 11px; padding: 4px 8px;">🏢<span class="btn-label" style="display:none;"> Instalaciones</span></button>
+  <button class="map-btn active" data-layer="hospitales" title="Mostrar/Ocultar Hospitales" aria-label="Mostrar u ocultar hospitales" style="font-size: 11px; padding: 4px 8px;">🏥<span class="btn-label" style="display:none;"> Hospitales</span></button>
+  <button class="map-btn active" data-layer="rutas" title="Mostrar/Ocultar Rutas Calculadas" aria-label="Mostrar u ocultar rutas" style="font-size: 11px; padding: 4px 8px;">🛣️<span class="btn-label" style="display:none;"> Rutas</span></button>
+  <button class="map-btn" data-layer="comunas" title="Mostrar/Ocultar Comunas" aria-label="Mostrar u ocultar comunas" style="font-size: 11px; padding: 4px 8px;">📍<span class="btn-label" style="display:none;"> Comunas</span></button>
+  <button class="map-btn" id="btn-centrar" title="Centrar en CABA" aria-label="Centrar mapa" style="font-size: 11px; padding: 4px 8px;">🎯<span class="btn-label" style="display:none;"> Centrar</span></button>
+  <button class="map-btn" id="btn-limpiar-rutas" title="Limpiar rutas dibujadas" aria-label="Limpiar rutas" style="font-size: 11px; padding: 4px 8px;">🧹<span class="btn-label" style="display:none;"> Limpiar</span></button>
+  <button class="map-btn" id="btn-redistribuir" title="Redistribuir recursos" aria-label="Redistribuir recursos" style="font-size: 11px; padding: 4px 8px;">🔄<span class="btn-label" style="display:none;"> Redistribuir</span></button>
+  <button class="map-btn" id="btn-test-routes" title="Calcular rutas de prueba" aria-label="Calcular rutas de prueba" style="font-size: 11px; padding: 4px 8px;">🔍<span class="btn-label" style="display:none;"> Test</span></button>
       </div>
     </div>
     
@@ -176,105 +324,158 @@
       </div>
     </div>
 
-    <!-- Mapa -->
-    <div id="map" style="height: calc(100% - 150px); border-radius: 8px;"></div>
+  <!-- Mapa -->
+  <!-- Ajuste: usar altura fija para evitar que calc(100% - 150px) resulte en 0 cuando el contenedor padre no tiene altura explícita -->
+  <div id="map" style="height:600px; border-radius:8px;"></div>
   </div>
 
-  <!-- Panel lateral derecho con información -->
-  <div style="display: flex; flex-direction: column; gap: 16px; max-height: calc(100vh - 120px); overflow-y: auto;">
-    
-    <!-- Leyenda -->
-    <div class="card" style="padding: 15px;">
-      <div style="background: rgba(59, 130, 246, 0.1); padding: 10px 12px; margin-bottom: 15px; border-radius: 8px; font-size: 14px; font-weight: bold; color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.2); text-align: center;">
-        🗺️ LEYENDA
+  <!-- Panel lateral derecho mejorado -->
+  <aside id="sidebar" style="display:flex; flex-direction:column; gap:14px; max-height:calc(100vh - 120px); overflow-y:auto;">
+    <!-- Clima + Pronóstico -->
+    <div class="card" style="padding:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h3 style="margin:0; font-size:14px; color:#60a5fa;">🌤️ Clima Actual</h3>
+        <button id="refresh-weather" class="btn btn-sm btn-outline-primary" style="font-size:10px; padding:2px 6px;">↻</button>
       </div>
-      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 12px;">
-        <div class="legend-item">
-          <span class="dot rojo"></span>
-          <span>Críticas</span>
+      <div id="weather-panel" style="font-size:12px;">
+        {% if weather %}
+          <div style="display:flex; gap:10px; align-items:center; margin-bottom:6px;">
+            {% if weather.icon_url %}<img src="{{ weather.icon_url }}" alt="{{ weather.condition }}" style="width:46px;height:46px;">{% endif %}
+            <div>
+              <div style="font-size:20px; font-weight:600; line-height:1;">{{ weather.temp }}°C <small style="font-size:11px;">(ST {{ weather.temp_feels }}°C)</small></div>
+              <div style="opacity:.85;">{{ weather.condition }}</div>
+              <div style="display:flex; gap:8px; font-size:10px; margin-top:4px; opacity:.8;">
+                <span>💨 {{ weather.wind_kmh }} km/h</span>
+                {% if weather.humidity %}<span>💧 {{ weather.humidity }}%</span>{% endif %}
+                {% if weather.pressure %}<span>🔻 {{ weather.pressure }} hPa</span>{% endif %}
+              </div>
+              <div style="font-size:9px; opacity:.55; margin-top:2px;">Fuente: {{ weather.source }} · {{ weather.updated_display }}</div>
+            </div>
+          </div>
+          {% if weather.forecast_hours %}
+            <div style="display:flex; gap:4px; margin-top:4px;">
+              {% for fh in weather.forecast_hours %}
+                <div style="flex:1; background:#1e293b; padding:4px 2px; border-radius:4px; text-align:center;">
+                  <div style="font-size:9px; opacity:.65;">{{ fh.time }}</div>
+                  <div style="font-size:11px; font-weight:600;">{{ fh.temp }}°</div>
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% else %}
+          <div style="font-size:11px; opacity:.8;">No disponible (sin API key, intentando fallback)...</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Noticias -->
+    <div class="card" style="padding:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <h3 style="margin:0; font-size:14px; color:#60a5fa;">📰 Noticias Relevantes</h3>
+        <div style="display:flex; gap:4px;">
+          <button id="rotate-news" class="btn btn-sm btn-outline-secondary" style="font-size:10px; padding:2px 6px;" title="Rotar">▶</button>
+          <button id="refresh-news" class="btn btn-sm btn-outline-primary" style="font-size:10px; padding:2px 6px;">↻</button>
         </div>
-        <div class="legend-item">
-          <span class="dot amarillo"></span>
-          <span>Urgentes</span>
+      </div>
+      <ul id="news-list" class="list-unstyled" style="margin:0; padding:0; max-height:210px; overflow:auto; font-size:12px;">
+        {% if news_items %}
+          {% for n in news_items %}
+            <li class="news-item" style="margin-bottom:8px;">
+              <div style="display:flex; gap:6px;">
+                <span style="display:inline-block; padding:2px 6px; font-size:10px; border-radius:999px; background: {{ n.severity_color|default:'#1e293b' }}20; color: {{ n.severity_color|default:'#3b82f6' }}; border:1px solid {{ n.severity_color|default:'#3b82f6' }}40; min-width:46px; text-align:center;">{{ n.severity_label|default:'-' }}</span>
+                <div style="flex:1;">
+                  <a href="{{ n.link }}" target="_blank" rel="noopener" style="text-decoration:none; color:#e2e8f0; font-weight:500;">{{ n.title }}</a>
+                  <div style="font-size:10px; opacity:.6;">{{ n.source }}{% if n.published_display %} · {{ n.published_display }}{% endif %}</div>
+                </div>
+              </div>
+            </li>
+          {% endfor %}
+        {% else %}
+          <li style="font-size:11px; opacity:.7;">Sin datos de feeds configurados.</li>
+        {% endif %}
+      </ul>
+    </div>
+
+    <!-- Incidentes / Tránsito -->
+    <div class="card" style="padding:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <h3 style="margin:0; font-size:14px; color:#60a5fa;">🚧 Incidentes & Tránsito</h3>
+        <div style="display:flex; gap:4px;">
+          <button id="refresh-incidents" class="btn btn-sm btn-outline-primary" style="font-size:10px; padding:2px 6px;">↻</button>
         </div>
-        <div class="legend-item">
-          <span class="dot verde"></span>
-          <span>Leves</span>
+      </div>
+      <ul id="incidents-list" class="list-unstyled" style="margin:0; padding:0; max-height:170px; overflow:auto; font-size:12px;">
+        {% if incident_items %}
+          {% for n in incident_items %}
+            <li class="incident-item" style="margin-bottom:8px;">
+              <div style="display:flex; gap:6px;">
+                <span style="display:inline-block; padding:2px 6px; font-size:10px; border-radius:999px; background: {{ n.severity_color|default:'#1e293b' }}20; color: {{ n.severity_color|default:'#f59e0b' }}; border:1px solid {{ n.severity_color|default:'#f59e0b' }}40; min-width:48px; text-align:center;">{{ n.category|default:'gen'|title }}</span>
+                <div style="flex:1;">
+                  <a href="{{ n.link }}" target="_blank" rel="noopener" style="text-decoration:none; color:#e2e8f0; font-weight:500;">{{ n.title }}</a>
+                  <div style="font-size:10px; opacity:.6;">{{ n.source }}{% if n.published_display %} · {{ n.published_display }}{% endif %}</div>
+                </div>
+              </div>
+            </li>
+          {% endfor %}
+        {% else %}
+          <li style="font-size:11px; opacity:.7;">Sin datos de incidentes.</li>
+        {% endif %}
+      </ul>
+    </div>
+
+    <!-- Estado Operativo Resumido -->
+    <div class="card" style="padding:12px;">
+      <h3 style="margin:0 0 10px 0; font-size:14px; color:#60a5fa;">📊 Estado Operativo</h3>
+      <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:8px; font-size:11px;">
+        <div style="background:#1e293b; padding:6px; border-radius:6px; text-align:center;">
+          <div style="font-size:16px; font-weight:700; color:#f87171;">{{ emergencies.count }}</div>
+          <div style="opacity:.7;">Emergencias</div>
         </div>
-        <div class="legend-item">
-          <span class="dot agente-policia"></span>
-          <span>Policía</span>
+        <div style="background:#1e293b; padding:6px; border-radius:6px; text-align:center;">
+          <div style="font-size:16px; font-weight:700; color:#3b82f6;">{{ agents.count }}</div>
+          <div style="opacity:.7;">Agentes</div>
         </div>
-        <div class="legend-item">
-          <span class="dot agente-bomberos"></span>
-          <span>Bomberos</span>
+        <div style="background:#1e293b; padding:6px; border-radius:6px; text-align:center;">
+          <div style="font-size:16px; font-weight:700; color:#8b5cf6;">{{ facilities.count }}</div>
+          <div style="opacity:.7;">Instalaciones</div>
         </div>
-        <div class="legend-item">
-          <span class="dot agente-same"></span>
-          <span>SAME</span>
-        </div>
-        <div class="legend-item">
-          <span class="dot agente-transito"></span>
-          <span>Tránsito</span>
-        </div>
-        <div class="legend-item">
-          <span class="dot instalacion"></span>
-          <span>Instalaciones</span>
+        <div style="background:#1e293b; padding:6px; border-radius:6px; text-align:center;">
+          <div style="font-size:16px; font-weight:700; color:#10b981;">15</div>
+          <div style="opacity:.7;">Comunas</div>
         </div>
       </div>
     </div>
 
-    <!-- Estadísticas operativas -->
-    <div class="card" style="padding: 15px;">
-      <h3 style="margin: 0 0 15px 0; color: #60a5fa; font-size: 16px;">📊 Estado Operativo</h3>
-      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
-        <div class="stat-mini">
-          <div class="value">{{ emergencies.count }}</div>
-          <div>Emergencias Activas</div>
-        </div>
-        <div class="stat-mini">
-          <div class="value">{{ agents.count }}</div>
-          <div>Agentes en Campo</div>
-        </div>
-        <div class="stat-mini">
-          <div class="value">{{ facilities.count }}</div>
-          <div>Instalaciones</div>
-        </div>
-        <div class="stat-mini">
-          <div class="value">15</div>
-          <div>Comunas</div>
-        </div>
+    <!-- Leyenda compacta -->
+    <div class="card" style="padding:12px;">
+      <h3 style="margin:0 0 10px 0; font-size:14px; color:#60a5fa;">🗺️ Leyenda</h3>
+      <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:6px; font-size:11px;">
+        <div class="legend-item"><span class="dot rojo"></span> Críticas</div>
+        <div class="legend-item"><span class="dot amarillo"></span> Urgentes</div>
+        <div class="legend-item"><span class="dot verde"></span> Leves</div>
+        <div class="legend-item"><span class="dot agente-policia"></span> Policía</div>
+        <div class="legend-item"><span class="dot agente-bomberos"></span> Bomberos</div>
+        <div class="legend-item"><span class="dot agente-same"></span> SAME</div>
+        <div class="legend-item"><span class="dot agente-transito"></span> Tránsito</div>
+        <div class="legend-item"><span class="dot instalacion"></span> Instalaciones</div>
+      </div>
+      <hr style="margin:10px 0;">
+      <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:6px; font-size:11px; opacity:.85;">
+        <div>🎯 Centrar</div>
+        <div>🧹 Limpiar</div>
+        <div>🔄 Redistribuir</div>
+        <div>� Test Rutas</div>
       </div>
     </div>
 
-    <!-- Información de CABA -->
-    <div class="card" style="padding: 15px;">
-      <div style="background: linear-gradient(135deg, #1e40af, #3730a3); padding: 15px; border-radius: 12px; color: white; text-align: center;">
-        <h4 style="margin: 0 0 8px 0; font-size: 16px;">🏛️ CIUDAD AUTÓNOMA DE BUENOS AIRES</h4>
-        <div style="font-size: 11px; opacity: 0.9; margin-bottom: 12px;">Sistema Unificado de Emergencias</div>
-        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 13px;">
-          <div><strong>Superficie:</strong><br>200 km²</div>
-          <div><strong>Población:</strong><br>3.1M hab.</div>
-          <div><strong>Densidad:</strong><br>15,500 hab/km²</div>
-          <div><strong>Comunas:</strong><br>15 distritos</div>
-        </div>
+    <!-- Actividad reciente (ticker reducido) -->
+    <div class="card" style="padding:12px;">
+      <h3 style="margin:0 0 8px 0; font-size:14px; color:#60a5fa;">📢 Actividad</h3>
+      <div id="recent-activity" style="font-size:11px; line-height:1.35; max-height:120px; overflow:auto;">
+        <div>✅ Panel inicial listo.</div>
       </div>
     </div>
-
-    <!-- Últimas actividades -->
-    <div class="card" style="padding: 15px;">
-      <div class="emergency-ticker">
-        <div class="ticker-title">📢 Últimas Actividades del Sistema</div>
-        <div style="margin-top: 10px; font-size: 12px; line-height: 1.4;">
-          <div style="padding: 8px 0; border-bottom: 1px solid rgba(16, 185, 129, 0.2);">🚨 Nueva emergencia reportada en Comuna 1</div>
-          <div style="padding: 8px 0; border-bottom: 1px solid rgba(16, 185, 129, 0.2);">🚔 Patrulla despachada a Balvanera</div>
-          <div style="padding: 8px 0; border-bottom: 1px solid rgba(16, 185, 129, 0.2);">🚑 Ambulancia en ruta a hospital Fernández</div>
-          <div style="padding: 8px 0; border-bottom: 1px solid rgba(16, 185, 129, 0.2);">🚒 Bomberos controlaron incendio en Palermo</div>
-          <div style="padding: 8px 0;">✅ Emergencia resuelta en San Telmo</div>
-        </div>
-      </div>
-    </div>
-  </div>
+  </aside>
 </div>
 
 {% load l10n %}
@@ -335,6 +536,84 @@
   let routePolygons = [];
   let selectedEmergency = null;
   let trackingInterval = null;
+  let trackingEntries = {};
+  let trackingHistory = [];
+  let trackingPlaybackIndex = -1;
+  let trackingFollowLive = true;
+  let trackingControl = null;
+  let trackingControlElements = {};
+  const ROUTE_DISPLAY_LIMIT = 3;
+  const routeLayersByResource = {};
+
+  function selectRoutesForDisplay(routes) {
+    if (!Array.isArray(routes) || routes.length === 0) {
+      return [];
+    }
+
+    const limit = Math.max(1, ROUTE_DISPLAY_LIMIT || 3);
+    const safeRoutes = routes
+      .filter(Boolean)
+      .map(route => ({ ...route }));
+
+    const byRank = [...safeRoutes].sort((a, b) => {
+      const rankA = a?.rank ?? 999;
+      const rankB = b?.rank ?? 999;
+      return rankA - rankB;
+    });
+
+    const hasGeometry = route => {
+      const coords = route?.geometry?.coordinates;
+      return Array.isArray(coords) && coords.length > 1;
+    };
+
+    const selected = [];
+    const taken = new Set();
+    const addRoute = route => {
+      if (!route) return;
+      const resourceId = route.resource_id || route.id;
+      if (!resourceId || taken.has(resourceId)) return;
+      selected.push({ ...route });
+      taken.add(resourceId);
+    };
+
+    const primaryRoute = byRank.find(route => route.is_primary) || byRank[0];
+    addRoute(primaryRoute);
+
+    for (const route of byRank) {
+      if (selected.length >= limit) break;
+      if (route.is_dispatch) {
+        addRoute(route);
+      }
+    }
+
+    const weighted = [...byRank].sort((a, b) => {
+      const dispatchScore = Number(Boolean(b.is_dispatch)) - Number(Boolean(a.is_dispatch));
+      if (dispatchScore !== 0) {
+        return dispatchScore;
+      }
+      const geometryScore = Number(hasGeometry(b)) - Number(hasGeometry(a));
+      if (geometryScore !== 0) {
+        return geometryScore;
+      }
+      const rankA = a?.rank ?? 999;
+      const rankB = b?.rank ?? 999;
+      return rankA - rankB;
+    });
+
+    for (const route of weighted) {
+      if (selected.length >= limit) break;
+      addRoute(route);
+    }
+
+    const withDisplayMeta = selected.slice(0, limit).map((route, index) => ({
+      ...route,
+      display_rank: index + 1,
+      is_primary_display: index === 0,
+      has_geometry: hasGeometry(route),
+    }));
+
+    return withDisplayMeta;
+  }
 
   // Función para obtener colores por fuerza
   function getForceColor(force) {
@@ -395,6 +674,9 @@
           <div style="margin-top: 12px; display: flex; gap: 5px; flex-wrap: wrap;">
             <button onclick="calculateRoutes({{ emergency.id }})" class="btn" style="background: #3b82f6; color: white; font-size: 11px; padding: 4px 8px;">
               🗺️ Calcular Rutas
+            </button>
+            <button onclick="showStoredRoutes({{ emergency.id }})" class="btn" style="background: #6366f1; color: white; font-size: 11px; padding: 4px 8px;">
+              📦 Mostrar Rutas
             </button>
             <button onclick="assignOptimalResources({{ emergency.id }})" class="btn" style="background: #10b981; color: white; font-size: 11px; padding: 4px 8px;">
               ⚡ Asignar Óptimo
@@ -980,8 +1262,10 @@
           console.log(`Datos API emergencia ${emergencyId}:`, data);
           
           if (data.success && data.routes && data.routes.length > 0) {
-            data.routes.forEach(route => {
-              console.log('Mostrando ruta:', route);
+            const routesToRender = selectRoutesForDisplay(data.routes);
+            // FIX: sintaxis forEach corregida
+            routesToRender.forEach(route => {
+              console.log('Mostrando ruta prioritaria:', route);
               displayRouteOnMap({
                 ...route,
                 emergency_id: emergencyId,
@@ -1167,6 +1451,60 @@
     
     console.log(`Ruta mostrada para emergencia ${route.emergency_id}:`, route);
   }
+
+  // === RUTAS ALMACENADAS (PERSISTIDAS) ===
+  async function showStoredRoutes(emergencyId){
+    try {
+      const container = document.getElementById(`routes-info-${emergencyId}`);
+      if(container){
+        container.innerHTML = '<div style="color:#3b82f6;">📦 Cargando rutas guardadas...</div>';
+      }
+      const res = await fetch(`/api/stored-routes/${emergencyId}/`);
+      const data = await res.json();
+      if(!data.success){
+        if(container) container.innerHTML = '<div style="color:#dc2626;">No hay rutas persistidas.</div>';
+        return;
+      }
+      clearRoutes();
+      const stored = data.routes || [];
+      if(!stored.length){
+        if(container) container.innerHTML = '<div style="color:#f59e0b;">Sin rutas persistidas aún.</div>';
+        return;
+      }
+      const selected = selectRoutesForDisplay(stored.map(r=>({
+        resource_id: r.resource_id,
+        resource_type: r.resource_type,
+        priority: r.is_primary? 'Crítico':'Normal',
+        distance: r.distance_km?.toFixed? r.distance_km.toFixed(1): r.distance_km,
+        duration: r.estimated_time_minutes?.toFixed? r.estimated_time_minutes.toFixed(1): r.estimated_time_minutes,
+        geometry: r.route_geometry || r.geometry || {},
+        rank: r.rank,
+        is_primary: r.rank===1,
+        is_dispatch: r.is_dispatch || false,
+        score: r.priority_score || r.score || 0
+      })));
+      selected.forEach(routeObj => displayRouteOnMap({
+        ...routeObj,
+        emergency_id: emergencyId,
+        emergency_type: 'Emergencia',
+        priority: routeObj.is_primary? 'Crítico':'Normal'
+      }));
+      if(container){
+        let html = '<div style="margin-top:8px; font-size:12px;">Rutas almacenadas:';
+        selected.forEach(r=>{
+          html += `<div style='margin-top:4px; padding:4px 6px; background:#111827; border-radius:4px;'>${r.resource_type} · ${r.distance||'?' } km · ${r.duration||'?'} min ${r.is_primary? ' <strong style="color:#22c55e;">(Óptima)</strong>':''}</div>`;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+      }
+      if(activeRoutes.length){
+        try { const g = new L.featureGroup(activeRoutes.map(r=>r.line)); map.fitBounds(g.getBounds(), {padding:[30,30]}); } catch(e){ console.warn(e); }
+      }
+      updateTickerWithActivity(`📦 Rutas guardadas mostradas (#${emergencyId})`);
+    } catch(err){
+      console.error('Error cargando rutas persistidas', err);
+    }
+  }
   
   function animateRoute(routeLine) {
     let dashOffset = 0;
@@ -1223,6 +1561,7 @@
     fetch(`/route-details/${emergencyId}/`)
     .then(response => response.json())
     .then(data => {
+
       if (data.success) {
         showRouteDetailsModal(data.route_details);
       }
@@ -1331,21 +1670,25 @@
     layerGroups.rutas.clearLayers();
     activeRoutes = [];
     routePolygons = [];
+    resetTrackingState();
+    Object.keys(routeLayersByResource).forEach(id => delete routeLayersByResource[id]);
   }
   
   async function calculateRoutes(emergencyId) {
     const routesInfoDiv = document.getElementById(`routes-info-${emergencyId}`);
     routesInfoDiv.innerHTML = '<div style="color: #3b82f6;">🔄 Calculando rutas optimizadas...</div>';
-    
     try {
       const response = await fetch(`/api/routes/${emergencyId}/`);
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(data.error || 'Error calculando rutas');
       }
-      
-      // Verificar si la emergencia está resuelta
+
+      const greenWaveActive = Boolean(
+        typeof data.green_wave_active === 'boolean' ? data.green_wave_active : (data.emergency && data.emergency.onda_verde)
+      );
+
       if (data.emergency && data.emergency.status === 'resuelta') {
         routesInfoDiv.innerHTML = `
           <div style="background: #d4edda; padding: 10px; border-radius: 4px; border-left: 4px solid #28a745;">
@@ -1355,167 +1698,49 @@
             </p>
           </div>
         `;
-        return; // No mostrar rutas en el mapa
+        return;
       }
-      
-      clearRoutes(); // Limpiar rutas anteriores
-      
-      if (data.routes.length === 0) {
+
+      clearRoutes();
+
+      if (!Array.isArray(data.routes) || data.routes.length === 0) {
         routesInfoDiv.innerHTML = '<div style="color: #f59e0b;">⚠️ No hay recursos disponibles</div>';
         return;
       }
-      
-      // Mostrar información de rutas
-      let routesHtml = '<div style="border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 8px;">';
-      routesHtml += `<strong>� Recursos Asignados (${data.routes.length}):</strong><br>`;
-      
-      data.routes.forEach((route, index) => {
-        console.log('Procesando ruta:', route); // Debug
-        
-        // Dibujar ruta en el mapa
-        if (route.geometry && route.geometry.coordinates && route.geometry.coordinates.length > 0) {
-          try {
-            const routeColor = getRouteColor(index);
-            const routeLine = L.geoJSON(route.geometry, {
-              style: {
-                color: routeColor,
-                weight: 5,
-                opacity: 0.9,
-                dashArray: index === 0 ? '0' : '10,5'  // Primera ruta sólida, otras punteadas
-              }
-            }).addTo(layerGroups.rutas);
-            
-            // Añadir popup a la ruta
-            routeLine.bindPopup(`
-              <div>
-                <h5>${route.resource_type || 'Recurso desconocido'}</h5>
-                <p><strong>📏 Distancia:</strong> ${route.distance} km</p>
-                <p><strong>⏱️ ETA:</strong> ${route.duration} min</p>
-                <p><strong>🏆 Prioridad:</strong> ${index + 1}°</p>
-              </div>
-            `);
-            
-            activeRoutes.push({
-              id: route.resource_id,
-              line: routeLine,
-              route: route
-            });
-            
-            console.log('✓ Ruta dibujada exitosamente'); // Debug
-          } catch (err) {
-            console.error('Error dibujando ruta:', err);
-          }
-        } else {
-          console.log('Ruta sin geometría válida:', route); // Debug
-        }
-        
-        // Añadir información al popup con mejor explicación
-        let priority, priorityColor, explanation;
-        
-        if (index === 0) {
-            priority = '🚨 RUTA ÓPTIMA';
-            priorityColor = '#ff4444';
-            explanation = '⭐ Menor tiempo + distancia';
-        } else if (index === 1) {
-            priority = '⚡ RUTA RÁPIDA';  
-            priorityColor = '#ff8800';
-            explanation = '🔄 Segunda mejor opción';
-        } else {
-            priority = `🛡️ BACKUP ${index + 1}`;
-            priorityColor = '#4CAF50';
-            explanation = '🔧 Recurso de respaldo';
-        }
-        
-        const resourceIcon = route.resource_type.includes('Ambulancia') ? '🚑' : 
-                           route.resource_type.includes('Bombero') ? '🚒' :
-                           route.resource_type.includes('Policía') ? '🚔' : '🚨';
-        
-        routesHtml += `
-          <div style="font-size: 12px; margin: 6px 0; padding: 8px; border-left: 4px solid ${priorityColor}; background: rgba(255,255,255,0.9); border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-            <div style="font-weight: bold; color: ${priorityColor}; margin-bottom: 4px;">${priority}</div>
-            <div style="margin-bottom: 4px;">${resourceIcon} <strong>${route.resource_type || 'Recurso'}</strong></div>
-            <div style="display: flex; justify-content: space-between; font-size: 11px; color: #666;">
-              <span>📏 ${route.distance} km</span>
-              <span>⏱️ ${route.duration} min</span>
-              <span>📊 Score: ${route.score}</span>
-            </div>
-            <div style="font-size: 10px; color: #888; margin-top: 4px; font-style: italic;">
-              ${explanation}
-            </div>
-          </div>
-        `;
+
+      const routesToRender = selectRoutesForDisplay(data.routes);
+      renderPriorityRoutes(emergencyId, routesToRender, {
+        emergencyType: data.emergency?.type,
+        priority: data.emergency?.priority,
+        greenWaveActive
       });
-      
-      routesHtml += '</div>';
-      routesInfoDiv.innerHTML = routesHtml;
-      
-      // Centrar mapa en las rutas si existen
-      if (activeRoutes.length > 0) {
-        try {
-          const group = new L.featureGroup(activeRoutes.map(r => r.line));
-          map.fitBounds(group.getBounds(), { padding: [20, 20] });
-        } catch (err) {
-          console.error('Error centrando mapa:', err);
+
+      // Información de rutas (si quisiéramos listar)
+      const detailsHtml = data.routes.map((r, idx) => `
+        <div style="font-size:12px; margin:6px 0; padding:6px; border-left:4px solid ${idx===0?'#6366f1':'#3b82f6'}; background:#fff; border-radius:4px; color:#0f172a;">
+          <div style="font-weight:bold;">${idx===0?'Ruta Principal':'Ruta '+(idx+1)}</div>
+          <div>${r.resource_type || 'Recurso'} · 📏 ${r.distance} km · ⏱️ ${r.duration} min · ⚖️ Score ${r.score ?? 'N/D'}</div>
+        </div>`).join('');
+      // Opcional: routesInfoDiv.innerHTML += detailsHtml;
+
+      try {
+        const group = new L.featureGroup(layerGroups.rutas.getLayers());
+        if (group.getLayers().length) {
+          map.fitBounds(group.getBounds(), { padding: [20,20] });
         }
+      } catch (e) {
+        console.warn('No se pudo ajustar bounds rutas', e);
       }
-      
-    } catch (error) {
-      console.error('Error calculando rutas:', error);
-      routesInfoDiv.innerHTML = `<div style="color: #dc2626;">❌ Error: ${error.message}</div>`;
+
+      showNotification(`📦 ${data.routes.length} rutas cargadas`, 'success');
+    } catch (err) {
+      console.error(err);
+      routesInfoDiv.innerHTML = `<div style="color:#dc2626;">❌ ${err.message}</div>`;
+      showNotification('❌ Error calculando rutas', 'error');
     }
   }
-  
-  async function assignOptimalResources(emergencyId) {
-    const routesInfoDiv = document.getElementById(`routes-info-${emergencyId}`);
-    routesInfoDiv.innerHTML = '<div style="color: #10b981;">🚀 Asignando recursos óptimos...</div>';
-    
-    try {
-      const response = await fetch(`/api/assign/${emergencyId}/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': getCookie('csrftoken')
-        }
-      });
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Error asignando recursos');
-      }
-      
-      // Mostrar resultado de asignación
-      let assignedHtml = '<div style="border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 8px;">';
-      assignedHtml += `<div style="color: #10b981; font-weight: bold;">✅ ${data.message}</div>`;
-      
-      data.assigned.forEach(resource => {
-        assignedHtml += `
-          <div style="font-size: 11px; margin: 4px 0; color: #059669;">
-            🚨 ${resource.resource_name}<br>
-            &nbsp;&nbsp;&nbsp;📏 ${resource.distance_km} km | ⏱️ ${resource.eta_minutes} min
-          </div>
-        `;
-      });
-      
-      assignedHtml += '</div>';
-      routesInfoDiv.innerHTML = assignedHtml;
-      
-      // Iniciar seguimiento en tiempo real
-      startRealTimeTracking();
-      
-      // Actualizar ticker con nueva actividad
-      updateTickerWithActivity(`🚨 Recursos asignados a Emergencia #${emergencyId}`);
-      
-    } catch (error) {
-      console.error('Error asignando recursos:', error);
-      routesInfoDiv.innerHTML = `<div style="color: #dc2626;">❌ Error: ${error.message}</div>`;
-    }
-  }
-  
-  function getRouteColor(index) {
-    const colors = ['#dc2626', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
-    return colors[index % colors.length];
-  }
-  
+
+  // Función para obtener cookies
   function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
@@ -1533,56 +1758,62 @@
   
   async function startRealTimeTracking() {
     if (trackingInterval) clearInterval(trackingInterval);
-    
-    trackingInterval = setInterval(async () => {
+
+    const fetchAndUpdateTracking = async () => {
       try {
         const response = await fetch('/api/tracking/');
         const data = await response.json();
-        
-        if (data.tracking_data.length > 0) {
-          updateTrackingVisualization(data.tracking_data);
-          updateTickerWithTracking(data.tracking_data);
+        const trackingPayload = Array.isArray(data.tracking_data) ? data.tracking_data : [];
+
+        if (trackingPayload.length === 0) {
+          if (trackingHistory.length === 0) {
+            resetTrackingState();
+          }
+          updateTrackingControlState(null);
+          return;
         }
+
+        updateTrackingVisualization(trackingPayload);
+        updateTickerWithTracking(trackingPayload);
       } catch (error) {
         console.error('Error en seguimiento:', error);
       }
-    }, 10000); // Cada 10 segundos
+    };
+
+    await fetchAndUpdateTracking();
+    trackingInterval = setInterval(fetchAndUpdateTracking, 10000); // Cada 10 segundos
   }
-  
+
   function updateTrackingVisualization(trackingData) {
-    // Limpiar visualizaciones anteriores de seguimiento
-    layerGroups.rutas.eachLayer(layer => {
-      if (layer.options && layer.options.isTracking) {
-        layerGroups.rutas.removeLayer(layer);
+    ensureTrackingControls();
+
+    if (!Array.isArray(trackingData) || trackingData.length === 0) {
+      if (trackingHistory.length === 0) {
+        resetTrackingState();
       }
-    });
-    
-    // Mostrar recursos en ruta
-    trackingData.forEach(resource => {
-      if (resource.route_geometry && resource.route_geometry.coordinates) {
-        const trackingLine = L.geoJSON(resource.route_geometry, {
-          style: {
-            color: '#10b981',
-            weight: 6,
-            opacity: 0.9,
-            dashArray: '5,15'
-          },
-          isTracking: true
-        }).addTo(layerGroups.rutas);
-        
-        trackingLine.bindPopup(`
-          <div>
-            <h5>🚨 ${resource.name} - EN RUTA</h5>
-            <p><strong>ETA Restante:</strong> ${resource.eta_minutes} min</p>
-            <p><strong>Distancia:</strong> ${resource.distance_remaining_km} km</p>
-            <p><strong>Estado:</strong> ${resource.status}</p>
-          </div>
-        `);
-      }
-    });
+      updateTrackingControlState(null);
+      return;
+    }
+
+    const frame = pushTrackingFrame(trackingData);
+
+    if (trackingFollowLive || trackingPlaybackIndex === -1) {
+      trackingPlaybackIndex = trackingHistory.length - 1;
+      renderTrackingFrame(frame.resources, trackingHistory.length - 1);
+    }
+
+    updateTrackingControlState(frame);
   }
-  
+
   function updateTickerWithActivity(message) {
+    // Añadir al panel lateral reducido
+    const ra = document.getElementById('recent-activity');
+    if (ra) {
+      const div = document.createElement('div');
+      div.textContent = message;
+      ra.prepend(div);
+      while (ra.children.length > 12) ra.removeChild(ra.lastChild);
+    }
     const ticker = document.getElementById('ticker-content');
     const newActivity = document.createElement('div');
     newActivity.className = 'ticker-item';
@@ -1598,16 +1829,620 @@
   }
   
   function updateTickerWithTracking(trackingData) {
-    if (trackingData.length === 0) return;
-    
+    if (!Array.isArray(trackingData) || trackingData.length === 0) return;
+
+    const minEta = Math.min(...trackingData.map(r => Number(r.eta_minutes) || Infinity));
+    const congested = trackingData.filter(r => r.traffic_level === 'congestionado').length;
+    const codeRedActive = trackingData.filter(r => r.is_code_red).length;
+
     const messages = [
       `🚔 ${trackingData.length} recursos en ruta hacia emergencias`,
-      `⏱️ Próximo arribo en ${Math.min(...trackingData.map(r => r.eta_minutes))} minutos`,
-      `📊 Seguimiento activo de recursos despachados`
+      `⏱️ Próximo arribo estimado en ${Number.isFinite(minEta) ? minEta.toFixed(1) : 'N/D'} min`,
+      `� Intensidad: ${congested} rutas con tráfico alto`,
     ];
-    
+
+    if (codeRedActive > 0) {
+      messages.push(`🟥 ${codeRedActive} recurso(s) en CAMINO a código rojo`);
+    }
+
     const randomMessage = messages[Math.floor(Math.random() * messages.length)];
     updateTickerWithActivity(randomMessage);
+  }
+
+  // ===== REFRESH NEWS & WEATHER =====
+  async function refreshWeather() {
+    const btn = document.getElementById('refresh-weather');
+    const panel = document.getElementById('weather-panel');
+    if (!panel) return;
+    btn && (btn.disabled = true);
+    try {
+      const r = await fetch('/api/weather/');
+      const data = await r.json();
+      if (data.success && data.weather) {
+        const w = data.weather;
+        panel.innerHTML = `
+          <div style="display:flex; gap:10px; align-items:center; margin-bottom:6px;">
+            ${w.icon_url ? `<img src="${w.icon_url}" style="width:46px;height:46px;"/>` : ''}
+            <div>
+              <div style="font-size:20px; font-weight:600; line-height:1;">${w.temp}°C <small style="font-size:11px;">(ST ${w.temp_feels}°C)</small></div>
+              <div style="opacity:.85;">${w.condition || ''}</div>
+              <div style="display:flex; gap:8px; font-size:10px; margin-top:4px; opacity:.8;">
+                <span>💨 ${w.wind_kmh} km/h</span>
+                ${w.humidity ? `<span>💧 ${w.humidity}%</span>` : ''}
+                ${w.pressure ? `<span>🔻 ${w.pressure} hPa</span>` : ''}
+              </div>
+              <div style="font-size:9px; opacity:.55; margin-top:2px;">Fuente: ${w.source} · ${w.updated_display}</div>
+            </div>
+          </div>
+          ${Array.isArray(w.forecast_hours) ? `<div style='display:flex; gap:4px; margin-top:4px;'>${w.forecast_hours.map(fh => `<div style='flex:1; background:#1e293b; padding:4px 2px; border-radius:4px; text-align:center;'><div style='font-size:9px; opacity:.65;'>${fh.time}</div><div style='font-size:11px; font-weight:600;'>${fh.temp}°</div></div>`).join('')}</div>` : ''}
+        `;
+        updateTickerWithActivity('🌤️ Clima actualizado');
+      } else {
+        panel.innerHTML = '<div style="font-size:11px; opacity:.7;">Error obteniendo clima</div>';
+      }
+    } catch (e) {
+      panel.innerHTML = '<div style="font-size:11px; opacity:.7;">Error de red clima</div>';
+    } finally {
+      btn && (btn.disabled = false);
+    }
+  }
+
+  let newsRotationTimer = null;
+  function rotateNewsOnce() {
+    const list = document.getElementById('news-list');
+    if (!list) return;
+    if (list.children.length > 1) {
+      const first = list.children[0];
+      first.style.opacity = '0';
+      setTimeout(() => {
+        list.appendChild(first);
+        first.style.opacity = '1';
+      }, 300);
+    }
+  }
+
+  async function refreshNews() {
+    const btn = document.getElementById('refresh-news');
+    const list = document.getElementById('news-list');
+    btn && (btn.disabled = true);
+    try {
+      const r = await fetch('/api/news/');
+      const data = await r.json();
+      if (data.success) {
+        list.innerHTML = '';
+        data.items.forEach(n => {
+          const li = document.createElement('li');
+            li.className = 'news-item';
+            li.style.marginBottom = '8px';
+            li.innerHTML = `
+              <div style='display:flex; gap:6px;'>
+                <span style='display:inline-block; padding:2px 6px; font-size:10px; border-radius:999px; background:${n.severity_color || '#1e293b'}20; color:${n.severity_color || '#3b82f6'}; border:1px solid ${(n.severity_color || '#3b82f6')}40; min-width:46px; text-align:center;'>${n.severity_label || '-'}</span>
+                <div style='flex:1;'>
+                  <a href='${n.link}' target='_blank' rel='noopener' style='text-decoration:none; color:#e2e8f0; font-weight:500;'>${n.title}</a>
+                  <div style='font-size:10px; opacity:.6;'>${n.source}${n.published_display ? ' · ' + n.published_display : ''}</div>
+                </div>
+              </div>`;
+          list.appendChild(li);
+        });
+        updateTickerWithActivity('📰 Noticias actualizadas');
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      btn && (btn.disabled = false);
+    }
+  }
+
+  document.getElementById('refresh-weather')?.addEventListener('click', refreshWeather);
+  document.getElementById('refresh-news')?.addEventListener('click', refreshNews);
+  document.getElementById('rotate-news')?.addEventListener('click', rotateNewsOnce);
+  document.getElementById('refresh-incidents')?.addEventListener('click', refreshIncidents);
+  newsRotationTimer = setInterval(rotateNewsOnce, 12000);
+
+  async function refreshIncidents() {
+    const btn = document.getElementById('refresh-incidents');
+    const list = document.getElementById('incidents-list');
+    if (!list) return;
+    btn && (btn.disabled = true);
+    try {
+      const r = await fetch('/api/incidents/');
+      const data = await r.json();
+      if (data.success) {
+        list.innerHTML = '';
+        data.items.forEach(n => {
+          const li = document.createElement('li');
+          li.className = 'incident-item';
+            li.style.marginBottom = '8px';
+            li.innerHTML = `
+              <div style='display:flex; gap:6px;'>
+                <span style='display:inline-block; padding:2px 6px; font-size:10px; border-radius:999px; background:${n.severity_color || '#1e293b'}20; color:${n.severity_color || '#f59e0b'}; border:1px solid ${(n.severity_color || '#f59e0b')}40; min-width:48px; text-align:center;'>${(n.category || 'gen').substring(0,7)}</span>
+                <div style='flex:1;'>
+                  <a href='${n.link}' target='_blank' rel='noopener' style='text-decoration:none; color:#e2e8f0; font-weight:500;'>${n.title}</a>
+                  <div style='font-size:10px; opacity:.6;'>${n.source}${n.published_display ? ' · ' + n.published_display : ''}</div>
+                </div>
+              </div>`;
+          list.appendChild(li);
+        });
+        updateTickerWithActivity('🚧 Incidentes actualizados');
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      btn && (btn.disabled = false);
+    }
+  }
+
+  function ensureTrackingControls() {
+    if (trackingControl) return;
+
+    trackingControl = L.control({ position: 'bottomleft' });
+    trackingControl.onAdd = function() {
+      const container = L.DomUtil.create('div', 'tracking-control');
+      container.innerHTML = `
+        <div class="tracking-control__header">
+          <span>🎯 Seguimiento</span>
+          <span id="tracking-control-status" class="tracking-status">EN VIVO</span>
+        </div>
+        <div class="tracking-summary" id="tracking-control-summary">Sin seguimiento activo</div>
+        <div class="tracking-playback">
+          <button type="button" class="tracking-btn" data-action="back" title="Retroceder">⏮️</button>
+          <button type="button" class="tracking-btn" data-action="play" title="Pausar o reanudar">⏸️</button>
+          <button type="button" class="tracking-btn" data-action="forward" title="Avanzar">⏭️</button>
+        </div>
+        <input type="range" min="0" max="0" value="0" id="tracking-control-slider" class="tracking-slider" />
+        <div class="tracking-timestamp" id="tracking-control-timestamp">--:-- --</div>
+        <div class="tracking-legend" id="tracking-control-legend">
+          <span class="legend-pill">Sin datos</span>
+        </div>
+      `;
+
+      L.DomEvent.disableClickPropagation(container);
+      L.DomEvent.disableScrollPropagation(container);
+
+      trackingControlElements = {
+        container,
+        status: container.querySelector('#tracking-control-status'),
+        summary: container.querySelector('#tracking-control-summary'),
+        playButton: container.querySelector('[data-action="play"]'),
+        backButton: container.querySelector('[data-action="back"]'),
+        forwardButton: container.querySelector('[data-action="forward"]'),
+        slider: container.querySelector('#tracking-control-slider'),
+        timestamp: container.querySelector('#tracking-control-timestamp'),
+        legend: container.querySelector('#tracking-control-legend'),
+      };
+
+      trackingControlElements.playButton.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleTrackingPlayback();
+      });
+
+      trackingControlElements.backButton.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        stepTrackingFrame(-1);
+      });
+
+      trackingControlElements.forwardButton.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        stepTrackingFrame(1);
+      });
+
+      trackingControlElements.slider.addEventListener('input', event => {
+        event.stopPropagation();
+        onTrackingSliderChange(event);
+      });
+
+      updateTrackingControlState(null);
+      updateTrackingPlayButton();
+
+      return container;
+    };
+
+    trackingControl.addTo(map);
+  }
+
+  function pushTrackingFrame(trackingData) {
+    let resources;
+    try {
+      resources = structuredClone(trackingData);
+    } catch (error) {
+      resources = JSON.parse(JSON.stringify(trackingData));
+    }
+
+    const frame = {
+      timestamp: new Date().toISOString(),
+      resources
+    };
+
+    trackingHistory.push(frame);
+
+    if (trackingHistory.length > 30) {
+      trackingHistory.shift();
+      if (!trackingFollowLive && trackingPlaybackIndex > -1) {
+        trackingPlaybackIndex = Math.max(0, trackingPlaybackIndex - 1);
+      }
+    }
+
+    return frame;
+  }
+
+  function renderTrackingFrame(resources, frameIndex) {
+    if (!Array.isArray(resources)) return;
+
+    const visible = new Set();
+    const historyMap = buildHistoryForFrame(typeof frameIndex === 'number' ? frameIndex : (trackingHistory.length - 1));
+
+    resources.forEach(resource => {
+      if (!resource || !resource.id || !Array.isArray(resource.current_position)) {
+        return;
+      }
+
+      visible.add(resource.id);
+
+      if (!trackingEntries[resource.id]) {
+        trackingEntries[resource.id] = createTrackingEntry(resource);
+      }
+
+      updateTrackingEntry(trackingEntries[resource.id], resource, historyMap[resource.id]);
+    });
+
+    Object.keys(trackingEntries).forEach(id => {
+      if (!visible.has(id)) {
+        const entry = trackingEntries[id];
+        if (entry.marker) {
+          map.removeLayer(entry.marker);
+        }
+        if (entry.trail) {
+          layerGroups.rutas.removeLayer(entry.trail);
+        }
+        if (entry.routeLine) {
+          layerGroups.rutas.removeLayer(entry.routeLine);
+        }
+        delete trackingEntries[id];
+      }
+    });
+  }
+
+  function buildHistoryForFrame(frameIndex) {
+    const historyWindow = 12;
+    const historyMap = {};
+
+    if (!trackingHistory.length || typeof frameIndex !== 'number' || frameIndex < 0) {
+      return historyMap;
+    }
+
+    const start = Math.max(0, frameIndex - historyWindow);
+    for (let i = start; i <= frameIndex; i += 1) {
+      const frame = trackingHistory[i];
+      if (!frame || !Array.isArray(frame.resources)) continue;
+
+      frame.resources.forEach(resource => {
+        if (!resource || !resource.id || !Array.isArray(resource.current_position)) {
+          return;
+        }
+
+        if (!historyMap[resource.id]) {
+          historyMap[resource.id] = [];
+        }
+
+        historyMap[resource.id].push([resource.current_position[0], resource.current_position[1]]);
+      });
+    }
+
+    return historyMap;
+  }
+
+  function createTrackingEntry(resource) {
+    const color = resource.traffic_color || '#38bdf8';
+    const entry = {
+      history: [],
+      marker: L.marker(resource.current_position, {
+        icon: buildTrackingIcon(resource),
+        zIndexOffset: resource.is_code_red ? 1000 : 750
+      }),
+      trail: null,
+      routeLine: null
+    };
+
+    entry.marker.bindPopup(buildTrackingPopup(resource));
+    entry.marker.addTo(map);
+
+    entry.history.push([resource.current_position[0], resource.current_position[1]]);
+
+    entry.trail = L.polyline(entry.history, {
+      color,
+      weight: 3,
+      opacity: 0.5,
+      dashArray: '1, 8',
+      lineCap: 'round',
+      isTracking: true
+    }).addTo(layerGroups.rutas);
+
+    const latLngs = getLatLngsFromRoute(resource.route_geometry);
+    if (latLngs.length > 1) {
+      entry.routeLine = L.polyline(latLngs, {
+        color,
+        weight: resource.is_code_red ? 7 : 6,
+        opacity: 0.88,
+        dashArray: '6, 12',
+        lineCap: 'round',
+        isTracking: true
+      }).addTo(layerGroups.rutas);
+    }
+
+    return entry;
+  }
+
+  function updateTrackingEntry(entry, resource, historyPoints) {
+    const color = resource.traffic_color || '#38bdf8';
+    const position = [resource.current_position[0], resource.current_position[1]];
+
+    if (Array.isArray(historyPoints) && historyPoints.length > 0) {
+      entry.history = historyPoints.map(point => [point[0], point[1]]);
+    } else {
+      entry.history.push(position);
+      if (entry.history.length > 18) {
+        entry.history.shift();
+      }
+    }
+
+    entry.marker.setLatLng(position);
+    entry.marker.setIcon(buildTrackingIcon(resource));
+    entry.marker.setZIndexOffset(resource.is_code_red ? 1100 : 800);
+
+    if (entry.marker.getPopup()) {
+      entry.marker.getPopup().setContent(buildTrackingPopup(resource));
+    } else {
+      entry.marker.bindPopup(buildTrackingPopup(resource));
+    }
+
+    if (entry.trail) {
+      entry.trail.setLatLngs(entry.history);
+      entry.trail.setStyle({ color });
+    }
+
+    const latLngs = getLatLngsFromRoute(resource.route_geometry);
+    if (latLngs.length > 1) {
+      if (!entry.routeLine) {
+        entry.routeLine = L.polyline(latLngs, {
+          color,
+          weight: resource.is_code_red ? 7 : 6,
+          opacity: 0.9,
+          dashArray: '6, 12',
+          lineCap: 'round',
+          isTracking: true
+        }).addTo(layerGroups.rutas);
+      } else {
+        entry.routeLine.setLatLngs(latLngs);
+        entry.routeLine.setStyle({
+          color,
+          weight: resource.is_code_red ? 7 : 6,
+          opacity: 0.92
+        });
+      }
+    }
+
+    if (entry.routeLine) {
+      entry.routeLine.options.isTracking = true;
+    }
+  }
+
+  function buildTrackingIcon(resource) {
+    const color = resource.traffic_color || '#38bdf8';
+    const gradient = resource.is_code_red
+      ? `radial-gradient(circle at 35% 35%, #fee2e2 10%, ${color} 75%)`
+      : `radial-gradient(circle at 35% 35%, #ffffff 5%, ${color} 65%)`;
+    const glow = resource.is_code_red ? '' : `box-shadow: 0 0 16px ${hexToRgba(color, 0.55)};`;
+    const extraClass = resource.is_code_red ? 'code-red-glow' : '';
+
+    return L.divIcon({
+      className: 'tracking-marker-icon',
+      iconSize: [26, 26],
+      iconAnchor: [13, 13],
+      html: `
+        <div class="tracking-dot-wrapper">
+          <div class="tracking-dot ${extraClass}" style="${glow} background: ${gradient}; border-color: rgba(255,255,255,0.9);"></div>
+        </div>
+      `
+    });
+  }
+
+  function buildTrackingPopup(resource) {
+    const color = resource.traffic_color || '#38bdf8';
+    const progressPercent = Math.min(100, Math.max(0, Math.round((resource.progress || 0) * 100)));
+    const eta = typeof resource.eta_minutes === 'number' ? resource.eta_minutes.toFixed(1) : resource.eta_minutes;
+    const distance = typeof resource.distance_remaining_km === 'number' ? resource.distance_remaining_km.toFixed(2) : resource.distance_remaining_km;
+    const speed = typeof resource.speed_kmh === 'number' ? resource.speed_kmh.toFixed(1) : resource.speed_kmh;
+
+    return `
+      <div style="min-width: 220px;">
+        <div style="font-weight: 600; color: ${color}; margin-bottom: 4px;">${resource.name}</div>
+        <div style="font-size: 12px; line-height: 1.4;">
+          <div><strong>Estado:</strong> ${resource.status || 'desconocido'}</div>
+          <div><strong>ETA:</strong> ${eta} min</div>
+          <div><strong>Distancia:</strong> ${distance} km</div>
+          <div><strong>Velocidad:</strong> ${speed || 'N/D'} km/h</div>
+          <div><strong>Tráfico:</strong> ${resource.traffic_label || 'N/D'}</div>
+        </div>
+        <div style="margin-top: 6px; background: rgba(15,23,42,0.35); height: 6px; border-radius: 999px; overflow: hidden;">
+          <div style="width: ${progressPercent}%; height: 6px; background: ${color}; transition: width 0.4s ease;"></div>
+        </div>
+        <div style="margin-top: 6px; font-size: 11px; color: #94a3b8;">Progreso ${progressPercent}%${resource.is_code_red ? ' · Código rojo' : ''}</div>
+      </div>
+    `;
+  }
+
+  function getLatLngsFromRoute(routeGeometry) {
+    if (!routeGeometry || !Array.isArray(routeGeometry.coordinates)) {
+      return [];
+    }
+    return routeGeometry.coordinates.map(coord => [coord[1], coord[0]]);
+  }
+
+  function hexToRgba(hex, alpha) {
+    if (!hex) return `rgba(59, 130, 246, ${alpha})`;
+    let sanitized = hex.replace('#', '');
+    if (sanitized.length === 3) {
+      sanitized = sanitized.split('').map(char => char + char).join('');
+    }
+    const bigint = parseInt(sanitized, 16);
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  function updateTrackingControlState(frame) {
+    if (!trackingControlElements || !trackingControlElements.slider) {
+      return;
+    }
+
+    const { slider, status, summary, timestamp, legend } = trackingControlElements;
+    const lastIndex = Math.max(trackingHistory.length - 1, 0);
+
+    slider.max = lastIndex;
+
+    if (trackingFollowLive) {
+      slider.value = lastIndex;
+      status.textContent = 'EN VIVO';
+      status.classList.remove('paused');
+    } else {
+      const index = trackingPlaybackIndex > -1 ? trackingPlaybackIndex : 0;
+      slider.value = Math.min(index, lastIndex);
+      status.textContent = 'PAUSADO';
+      status.classList.add('paused');
+    }
+
+    if (!frame || !Array.isArray(frame.resources) || frame.resources.length === 0) {
+      summary.textContent = 'Sin seguimiento activo';
+      timestamp.textContent = '--:-- --';
+      legend.innerHTML = '<span class="legend-pill">Sin datos</span>';
+      updateTrackingPlayButton();
+      return;
+    }
+
+    summary.textContent = `${frame.resources.length} recurso(s) activos`;
+
+    const ts = new Date(frame.timestamp || Date.now());
+    if (!Number.isNaN(ts.getTime())) {
+      timestamp.textContent = ts.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    } else {
+      timestamp.textContent = '--:-- --';
+    }
+
+    updateTrackingLegend(frame.resources);
+    updateTrackingPlayButton();
+  }
+
+  function updateTrackingLegend(resources) {
+    if (!trackingControlElements || !trackingControlElements.legend) return;
+    const legend = trackingControlElements.legend;
+    legend.innerHTML = '';
+
+    if (!Array.isArray(resources) || resources.length === 0) {
+      legend.innerHTML = '<span class="legend-pill">Sin datos</span>';
+      return;
+    }
+
+    const counts = resources.reduce((acc, resource) => {
+      const level = resource.traffic_level || 'desconocido';
+      if (!acc[level]) {
+        acc[level] = { count: 0, color: resource.traffic_color || '#94a3b8' };
+      }
+      acc[level].count += 1;
+      if (!acc[level].color && resource.traffic_color) {
+        acc[level].color = resource.traffic_color;
+      }
+      return acc;
+    }, {});
+
+    Object.entries(counts).forEach(([level, info]) => {
+      const pill = document.createElement('span');
+      pill.className = 'legend-pill';
+      pill.innerHTML = `<span class="dot" style="background:${info.color};"></span> ${level} (${info.count})`;
+      legend.appendChild(pill);
+    });
+
+    const codeRedCount = resources.filter(r => r.is_code_red).length;
+    if (codeRedCount > 0) {
+      const pill = document.createElement('span');
+      pill.className = 'legend-pill';
+      pill.style.borderColor = 'rgba(248, 113, 113, 0.45)';
+      pill.style.background = 'rgba(127, 29, 29, 0.6)';
+      pill.innerHTML = `<span class="dot" style="background:#dc2626;"></span> Código Rojo (${codeRedCount})`;
+      legend.appendChild(pill);
+    }
+  }
+
+  function renderTrackingFrameByIndex(index) {
+    if (!trackingHistory.length) return;
+    const clampedIndex = Math.max(0, Math.min(index, trackingHistory.length - 1));
+    trackingPlaybackIndex = clampedIndex;
+    const frame = trackingHistory[clampedIndex];
+    renderTrackingFrame(frame.resources, clampedIndex);
+    updateTrackingControlState(frame);
+  }
+
+  function toggleTrackingPlayback() {
+    if (!trackingHistory.length) {
+      trackingFollowLive = true;
+      updateTrackingControlState(null);
+      return;
+    }
+
+    trackingFollowLive = !trackingFollowLive;
+
+    if (trackingFollowLive) {
+      renderTrackingFrameByIndex(trackingHistory.length - 1);
+    } else {
+      const idx = trackingPlaybackIndex > -1 ? trackingPlaybackIndex : trackingHistory.length - 1;
+      renderTrackingFrameByIndex(idx);
+    }
+  }
+
+  function stepTrackingFrame(delta) {
+    if (!trackingHistory.length) return;
+    trackingFollowLive = false;
+    const baseIndex = trackingPlaybackIndex > -1 ? trackingPlaybackIndex : (trackingHistory.length - 1);
+    const target = baseIndex + delta;
+    renderTrackingFrameByIndex(target);
+  }
+
+  function onTrackingSliderChange(event) {
+    if (!trackingHistory.length) return;
+    const value = Number(event.target.value);
+    const lastIndex = trackingHistory.length - 1;
+    trackingFollowLive = value === lastIndex;
+    renderTrackingFrameByIndex(value);
+  }
+
+  function updateTrackingPlayButton() {
+    if (!trackingControlElements || !trackingControlElements.playButton) return;
+    trackingControlElements.playButton.textContent = trackingFollowLive ? '⏸️' : '▶️';
+    trackingControlElements.playButton.setAttribute('aria-label', trackingFollowLive ? 'Pausar seguimiento en vivo' : 'Reanudar seguimiento en vivo');
+  }
+
+  function resetTrackingState() {
+    Object.keys(trackingEntries).forEach(id => {
+      const entry = trackingEntries[id];
+      if (entry.marker) {
+        map.removeLayer(entry.marker);
+      }
+      if (entry.trail) {
+        layerGroups.rutas.removeLayer(entry.trail);
+      }
+      if (entry.routeLine) {
+        layerGroups.rutas.removeLayer(entry.routeLine);
+      }
+      delete trackingEntries[id];
+    });
+
+    trackingHistory = [];
+    trackingPlaybackIndex = -1;
+    trackingFollowLive = true;
+    updateTrackingControlState(null);
   }
 
   // Inicialización con indicador de carga
