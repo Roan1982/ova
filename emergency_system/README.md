@@ -227,3 +227,110 @@ Mantén siempre el resultado acotado a `[0,1]`.
 
 Para soporte adicional o mejorar la visualización (íconos específicos por tipo de recurso, clustering, etc.) se pueden abrir issues o extender el template.
 
+## 🚗 Integración con API de Transporte de Buenos Aires
+
+El sistema ahora integra datos en tiempo real de la API de Transporte de Buenos Aires para mejorar significativamente la respuesta a emergencias mediante información actualizada de tráfico, cierres de calles y estacionamiento.
+
+### Características de la Integración
+
+- **Datos de Tráfico en Tiempo Real**: Conteos de vehículos, velocidad promedio y niveles de congestión
+- **Cierres de Calles**: Cortes totales/parciales con geometría GeoJSON y horarios de vigencia
+- **Estacionamiento para Emergencias**: Búsqueda inteligente de lugares de estacionamiento cercanos a la escena
+- **Alertas de Transporte**: Incidentes, accidentes y eventos que afectan la movilidad
+- **Rutas Optimizadas**: Evita calles cortadas y ajusta ETAs según condiciones de tráfico reales
+
+### Modelos de Datos
+
+| Modelo | Descripción | Campos Clave |
+|--------|-------------|--------------|
+| `StreetClosure` | Cortes de calles activos | `geometry`, `closure_type`, `start_date`, `end_date` |
+| `ParkingSpot` | Lugares de estacionamiento | `available_spaces`, `occupancy_rate`, `spot_type` |
+| `TrafficCount` | Datos de tráfico | `vehicle_count`, `average_speed`, `congestion_level` |
+| `TransportAlert` | Alertas de transporte | `alert_type`, `severity`, `affected_area` |
+
+### Funcionalidades del Sistema de Estacionamiento
+
+#### Búsqueda Inteligente
+```python
+from core.routing import RouteOptimizer
+
+optimizer = RouteOptimizer()
+
+# Buscar estacionamientos disponibles cerca de una emergencia
+parking_options = optimizer.find_emergency_parking(
+    emergency_coords=(-34.6037, -58.3816),  # Obelisco
+    max_distance_meters=500,
+    min_spaces_required=1
+)
+```
+
+#### Plan Completo de Estacionamiento
+```python
+# Generar plan completo: vehículo → estacionamiento → emergencia
+plan = optimizer.get_emergency_parking_plan(
+    vehicle_coords=(-34.6050, -58.3800),
+    emergency_coords=(-34.6037, -58.3816),
+    max_parking_distance=300
+)
+
+if plan['success']:
+    recommended = plan['recommended_plan']
+    print(f"Estacionamiento recomendado: {recommended['parking_info']['name']}")
+    print(f"ETA total: {recommended['total_eta_minutes']:.1f} minutos")
+```
+
+### Actualización de Datos
+
+Para mantener la información actualizada, ejecuta periódicamente:
+
+```bash
+# Actualizar todos los datos de transporte
+python manage.py update_transport_data
+
+# Actualizar solo datos específicos
+python manage.py update_transport_data --only-parking    # Solo estacionamiento
+python manage.py update_transport_data --only-traffic    # Solo tráfico
+python manage.py update_transport_data --only-closures   # Solo cierres
+```
+
+### Configuración de API
+
+La integración usa la API pública de Transporte de Buenos Aires. No requiere configuración adicional ya que utiliza endpoints públicos.
+
+### Mejoras en el Ruteo
+
+El sistema de rutas ahora considera:
+- **Cierres de calles activos**: Evita rutas que intersecten con cortes vigentes
+- **Condiciones de tráfico**: Ajusta duraciones de viaje según congestión real
+- **ETAs precisos**: Combina datos históricos con información en tiempo real
+
+### Demo del Sistema
+
+Ejecuta la demostración completa:
+
+```bash
+python demo_emergency_parking.py
+```
+
+Esta demo muestra:
+- Búsqueda de estacionamientos disponibles
+- Cálculo de rutas optimizadas
+- Generación de planes completos de estacionamiento
+- Cálculos de tiempo y distancia
+
+### Beneficios para Emergencias
+
+1. **Tiempo de Respuesta Reducido**: Rutas optimizadas evitan atascos y cortes
+2. **Estacionamiento Seguro**: Vehículos de emergencia encuentran lugares disponibles cerca de la escena
+3. **ETAs Precisos**: Información de tráfico real mejora las estimaciones de llegada
+4. **Mejor Coordinación**: Datos actualizados permiten una respuesta más eficiente
+
+### Limpieza Automática
+
+El sistema automáticamente elimina datos antiguos:
+- Cierres de calles: Después de 30 días
+- Datos de tráfico: Después de 7 días
+- Alertas: Después de 7 días
+
+Esto mantiene la base de datos optimizada y enfocada en información relevante.
+

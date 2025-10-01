@@ -11,6 +11,10 @@ from collections import OrderedDict
 from django.conf import settings
 from typing import List, Dict, Tuple, Optional
 import logging
+from django.utils import timezone
+from django.db import models
+
+from .models import StreetClosure  # Importar modelo de cierres de calles
 
 logger = logging.getLogger(__name__)
 
@@ -35,24 +39,386 @@ class RouteOptimizer:
         self._route_cache: OrderedDict[str, Dict] = OrderedDict()
         self._route_cache_size = getattr(settings, 'ROUTING_CACHE_SIZE', 128)
         self._openroute_rate_limited_until = 0.0
-        
+
+    def get_active_street_closures(self) -> List[Dict]:
+        """
+        Obtiene cortes de calles activos desde la base de datos
+        """
+        from .models import StreetClosure  # Import aquí para evitar circular imports
+
+        active_closures = StreetClosure.objects.filter(
+            is_active=True,
+            start_date__lte=timezone.now()
+        ).filter(
+            models.Q(end_date__isnull=True) | models.Q(end_date__gte=timezone.now())
+        ).values('id', 'name', 'lat', 'lon', 'closure_type', 'geometry', 'affected_streets')
+
+        return list(active_closures)
+
+    def route_intersects_closure(self, route_geometry: Dict, closure: Dict) -> bool:
+        """
+        Verifica si una ruta intersecta con un corte de calle
+        """
+        if not route_geometry or route_geometry.get('type') != 'LineString':
+            return False
+
+        route_coords = route_geometry.get('coordinates', [])
+
+        # Si el corte tiene geometría compleja, verificar intersección
+        if closure.get('geometry'):
+            return self._geometries_intersect(route_geometry, closure['geometry'])
+
+        # Si solo tiene punto central, verificar proximidad
+        closure_lat = closure.get('lat')
+        closure_lon = closure.get('lon')
+
+        if not (closure_lat and closure_lon):
+            return False
+
+        # Verificar si algún punto de la ruta está cerca del corte (dentro de 50m)
+        for coord in route_coords:
+            if len(coord) >= 2:
+                route_lon, route_lat = coord[0], coord[1]
+                distance = self.calculate_distance(route_lat, route_lon, closure_lat, closure_lon)
+                if distance <= 50:  # 50 metros de proximidad
+                    return True
+
+        return False
+
+    def _geometries_intersect(self, geom1: Dict, geom2: Dict) -> bool:
+        """
+        Verifica si dos geometrías GeoJSON se intersectan
+        Implementación simplificada para casos básicos
+        """
+        # Para una implementación completa necesitaríamos una librería como Shapely
+        # Por ahora, verificamos proximidad de puntos
+        if geom1.get('type') == 'LineString' and geom2.get('type') == 'Point':
+            point_coords = geom2.get('coordinates', [])
+            if len(point_coords) >= 2:
+                point_lon, point_lat = point_coords[0], point_coords[1]
+
+                for coord in geom1.get('coordinates', []):
+                    if len(coord) >= 2:
+                        line_lon, line_lat = coord[0], coord[1]
+                        distance = self.calculate_distance(line_lat, line_lon, point_lat, point_lon)
+                        if distance <= 50:  # 50 metros
+                            return True
+
+        elif geom1.get('type') == 'LineString' and geom2.get('type') == 'LineString':
+            # Verificar si las líneas están cerca
+            for coord1 in geom1.get('coordinates', []):
+                if len(coord1) >= 2:
+                    for coord2 in geom2.get('coordinates', []):
+                        if len(coord2) >= 2:
+                            distance = self.calculate_distance(
+                                coord1[1], coord1[0], coord2[1], coord2[0]
+                            )
+                            if distance <= 50:  # 50 metros
+                                return True
+
+        return False
+
+    def adjust_route_for_closures(self, route_info: Dict, start_coords: Tuple[float, float],
+                                end_coords: Tuple[float, float]) -> Dict:
+        """
+        Ajusta una ruta para evitar cortes de calles activos
+        """
+        active_closures = self.get_active_street_closures()
+
+        if not active_closures:
+            return route_info
+
+        # Verificar si la ruta intersecta con algún corte
+        intersects_any = False
+        intersecting_closures = []
+
+        for closure in active_closures:
+            if self.route_intersects_closure(route_info.get('geometry'), closure):
+                intersects_any = True
+                intersecting_closures.append(closure)
+                logger.warning(f"🚫 Ruta intersecta con corte de calle: {closure['name']}")
+
+        if not intersects_any:
+            return route_info
+
+        # Si intersecta, intentar encontrar ruta alternativa
+        logger.info(f"🔄 Intentando recalcular ruta para evitar {len(intersecting_closures)} cortes de calle")
+
+        # Intentar con diferentes proveedores o configuraciones
+        alternative_routes = []
+
+        # 1. Intentar con OSRM si no se usó antes
+        if route_info.get('provider') != 'OSRM':
+            alt_route = self.get_route_osrm(start_coords, end_coords)
+            if alt_route and alt_route.get('routes'):
+                alt_route_info = {
+                    'provider': 'OSRM',
+                    'route': alt_route['routes'][0],
+                    'geometry': alt_route['routes'][0].get('geometry'),
+                    'distance': alt_route['routes'][0].get('distance'),
+                    'duration': alt_route['routes'][0].get('duration'),
+                    'steps': alt_route['routes'][0].get('legs', [{}])[0].get('steps', [])
+                }
+                if alt_route_info['geometry']:
+                    alternative_routes.append(alt_route_info)
+
+        # 2. Intentar con GraphHopper si está disponible
+        if self.graphhopper_key and route_info.get('provider') != 'GraphHopper':
+            alt_route = self.get_route_graphhopper(start_coords, end_coords)
+            if alt_route and alt_route.get('paths'):
+                path = alt_route['paths'][0]
+                geo = path.get('points')
+                if geo and geo.get('type') == 'LineString':
+                    alt_route_info = {
+                        'provider': 'GraphHopper',
+                        'route': path,
+                        'geometry': geo,
+                        'distance': path.get('distance'),
+                        'duration': path.get('time')/1000.0 if path.get('time') else None,
+                        'steps': path.get('instructions', [])
+                    }
+                    alternative_routes.append(alt_route_info)
+
+        # 3. Generar ruta alternativa con grid path modificado
+        alt_grid_coords = self._generate_alternative_grid_path(start_coords, end_coords, intersecting_closures)
+        alt_distance = self.calculate_distance(start_coords[0], start_coords[1], end_coords[0], end_coords[1])
+        alt_duration = (alt_distance / 1000) / 20 * 60 * 60  # Velocidad más conservadora para ruta alternativa
+
+        alt_route_info = {
+            'provider': 'AlternativeGrid',
+            'route': None,
+            'geometry': {
+                'type': 'LineString',
+                'coordinates': [[c[1], c[0]] for c in alt_grid_coords]  # lon, lat
+            },
+            'distance': alt_distance,
+            'duration': alt_duration,
+            'steps': [],
+            'avoided_closures': len(intersecting_closures)
+        }
+        alternative_routes.append(alt_route_info)
+
+        # Encontrar la mejor ruta alternativa que no intersecte con cortes
+        for alt_route in alternative_routes:
+            intersects_alt = False
+            for closure in intersecting_closures:
+                if self.route_intersects_closure(alt_route.get('geometry'), closure):
+                    intersects_alt = True
+                    break
+
+            if not intersects_alt:
+                logger.info(f"✅ Ruta alternativa encontrada con {alt_route['provider']} - evita {len(intersecting_closures)} cortes")
+                alt_route['closures_avoided'] = intersecting_closures
+                return alt_route
+
+        # Si ninguna ruta alternativa funciona, devolver la original con advertencia
+        logger.warning(f"⚠️ No se pudo encontrar ruta alternativa que evite todos los cortes. Usando ruta original.")
+        route_info['closures_warning'] = intersecting_closures
+        route_info['intersects_closures'] = True
+        return route_info
+
+    def get_traffic_congestion_factor(self, route_geometry: Dict, timestamp: Optional[float] = None) -> float:
+        """
+        Calcula un factor de congestión para una ruta basado en datos de tránsito
+        Retorna un multiplicador para el tiempo de viaje (1.0 = normal, >1.0 = más lento)
+        """
+        from .models import TrafficCount  # Import aquí para evitar circular imports
+
+        if not route_geometry or route_geometry.get('type') != 'LineString':
+            return 1.0
+
+        route_coords = route_geometry.get('coordinates', [])
+        if len(route_coords) < 2:
+            return 1.0
+
+        # Usar timestamp actual si no se proporciona
+        if timestamp is None:
+            timestamp = time.time()
+
+        # Convertir a datetime aware
+        query_time = timezone.now()
+
+        # Buscar datos de tránsito en las últimas 2 horas
+        time_window_start = query_time - timezone.timedelta(hours=2)
+
+        # Obtener puntos de muestreo a lo largo de la ruta (cada 500m aproximadamente)
+        sample_points = self._get_route_sample_points(route_coords, interval_meters=500)
+
+        congestion_factors = []
+
+        for point in sample_points:
+            lat, lon = point
+
+            # Buscar conteos de tránsito cercanos (dentro de 200m)
+            nearby_counts = TrafficCount.objects.filter(
+                timestamp__gte=time_window_start,
+                timestamp__lte=query_time
+            ).extra(
+                select={'distance': '6371000 * 2 * ASIN(SQRT(POWER(SIN((%s - lat) * PI() / 360), 2) + COS(%s * PI() / 180) * COS(lat * PI() / 180) * POWER(SIN((%s - lon) * PI() / 360), 2)))'},
+                select_params=[lat, lat, lon],
+                where=['distance <= 200']
+            ).order_by('distance', '-timestamp')[:5]  # Top 5 más cercanos y recientes
+
+            if nearby_counts:
+                # Calcular factor de congestión basado en los conteos
+                total_weight = 0
+                weighted_factor = 0
+
+                for count in nearby_counts:
+                    # Peso basado en proximidad (inversamente proporcional a la distancia)
+                    distance = getattr(count, 'distance', 100)
+                    weight = max(0.1, 1.0 / (1.0 + distance/100))  # Peso entre 0.1 y 1.0
+
+                    # Factor basado en el tipo de conteo
+                    factor = self._traffic_count_to_congestion_factor(count)
+                    if factor > 1.0:
+                        weighted_factor += factor * weight
+                        total_weight += weight
+
+                if total_weight > 0:
+                    avg_factor = weighted_factor / total_weight
+                    congestion_factors.append(avg_factor)
+
+        if congestion_factors:
+            # Usar el factor de congestión más alto encontrado en la ruta
+            max_congestion = max(congestion_factors)
+            logger.debug(f"🚦 Factor de congestión detectado: {max_congestion:.2f}")
+            return max_congestion
+
+        return 1.0  # Sin datos de congestión = factor normal
+
+    def _get_route_sample_points(self, route_coords: List[List[float]], interval_meters: float = 500) -> List[Tuple[float, float]]:
+        """
+        Obtiene puntos de muestreo a lo largo de la ruta para consultar congestión
+        """
+        if len(route_coords) < 2:
+            return []
+
+        sample_points = []
+        total_distance = 0
+        current_point = (route_coords[0][1], route_coords[0][0])  # lat, lon
+
+        for i in range(1, len(route_coords)):
+            next_point = (route_coords[i][1], route_coords[i][0])  # lat, lon
+            segment_distance = self.calculate_distance(
+                current_point[0], current_point[1],
+                next_point[0], next_point[1]
+            )
+
+            # Agregar puntos de muestreo a lo largo del segmento
+            while total_distance + segment_distance >= interval_meters:
+                # Calcular punto intermedio
+                ratio = (interval_meters - total_distance) / segment_distance
+                mid_lat = current_point[0] + (next_point[0] - current_point[0]) * ratio
+                mid_lon = current_point[1] + (next_point[1] - current_point[1]) * ratio
+
+                sample_points.append((mid_lat, mid_lon))
+
+                total_distance = 0
+                current_point = (mid_lat, mid_lon)
+                segment_distance = self.calculate_distance(
+                    current_point[0], current_point[1],
+                    next_point[0], next_point[1]
+                )
+
+            total_distance += segment_distance
+            current_point = next_point
+
+        # Agregar punto final si no se agregó
+        if route_coords:
+            final_coord = route_coords[-1]
+            if final_coord and len(final_coord) >= 2:
+                sample_points.append((final_coord[1], final_coord[0]))
+
+        return sample_points
+
+    def _traffic_count_to_congestion_factor(self, traffic_count) -> float:
+        """
+        Convierte un conteo de tránsito en un factor de congestión
+        """
+        count_value = traffic_count.count_value
+        count_type = traffic_count.count_type
+        unit = traffic_count.unit
+
+        if count_type == 'vehicle':
+            # Para conteos de vehículos, asumir que > 1000 veh/h = congestión alta
+            if unit == 'vehicles' and count_value > 1000:
+                # Factor basado en intensidad del tráfico
+                if count_value > 2000:
+                    return 1.8  # Muy congestionado
+                elif count_value > 1500:
+                    return 1.5  # Congestionado
+                else:
+                    return 1.2  # Moderadamente congestionado
+
+        elif count_type == 'speed':
+            # Para mediciones de velocidad, velocidades bajas = más congestión
+            if unit == 'km/h' or unit == 'kph':
+                if count_value < 10:
+                    return 2.0  # Casi parado
+                elif count_value < 20:
+                    return 1.6  # Muy lento
+                elif count_value < 30:
+                    return 1.3  # Lento
+                elif count_value < 40:
+                    return 1.1  # Moderadamente lento
+
+        elif count_type == 'occupancy':
+            # Para ocupación de vía (porcentaje)
+            if unit == 'percentage' or '%' in unit:
+                if count_value > 90:
+                    return 2.0  # Vía casi llena
+                elif count_value > 70:
+                    return 1.5  # Muy ocupada
+                elif count_value > 50:
+                    return 1.2  # Moderadamente ocupada
+
+        return 1.0  # Sin congestión significativa
+
+    def adjust_duration_for_traffic(self, route_info: Dict) -> Dict:
+        """
+        Ajusta la duración estimada de una ruta basado en datos de tránsito
+        """
+        if not route_info.get('geometry') or not route_info.get('duration'):
+            return route_info
+
+        congestion_factor = self.get_traffic_congestion_factor(route_info['geometry'])
+
+        if congestion_factor > 1.0:
+            original_duration = route_info['duration']
+            adjusted_duration = original_duration * congestion_factor
+
+            logger.info(f"🚦 Ajustando duración por congestión: {original_duration/60:.1f}min → {adjusted_duration/60:.1f}min (factor: {congestion_factor:.2f})")
+
+            route_info['original_duration'] = original_duration
+            route_info['duration'] = adjusted_duration
+            route_info['congestion_factor'] = congestion_factor
+            route_info['traffic_adjusted'] = True
+
+        return route_info
+
     def calculate_distance(self, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         """
-        Calcula distancia euclidiana entre dos puntos (en metros aproximados)
+        Calcula la distancia en metros entre dos puntos usando la fórmula de Haversine
         """
-        R = 6371000  # Radio de la Tierra en metros
-        lat1_rad = math.radians(lat1)
-        lat2_rad = math.radians(lat2)
-        delta_lat = math.radians(lat2 - lat1)
-        delta_lon = math.radians(lon2 - lon1)
-        
-        a = (math.sin(delta_lat / 2) * math.sin(delta_lat / 2) +
-             math.cos(lat1_rad) * math.cos(lat2_rad) *
-             math.sin(delta_lon / 2) * math.sin(delta_lon / 2))
-        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-        distance = R * c
-        
-        return distance
+        from math import radians, sin, cos, sqrt, atan2
+
+        # Convertir a radianes
+        lat1_rad, lon1_rad = radians(lat1), radians(lon1)
+        lat2_rad, lon2_rad = radians(lat2), radians(lon2)
+
+        # Diferencias
+        dlat = lat2_rad - lat1_rad
+        dlon = lon2_rad - lon1_rad
+
+        # Fórmula de Haversine
+        a = sin(dlat/2)**2 + cos(lat1_rad) * cos(lat2_rad) * sin(dlon/2)**2
+        c = 2 * atan2(sqrt(a), sqrt(1-a))
+
+        # Radio de la Tierra en metros
+        R = 6371000
+
+        return R * c
 
     def get_route_openroute(self, start_coords: Tuple[float, float], 
                            end_coords: Tuple[float, float], 
@@ -238,6 +604,10 @@ class RouteOptimizer:
                     'steps': best.get('legs', [{}])[0].get('steps', [])
                 }
                 if result['geometry']:
+                    # Verificar y ajustar por cortes de calles
+                    result = self.adjust_route_for_closures(result, start_coords, end_coords)
+                    # Ajustar por condiciones de tránsito
+                    result = self.adjust_duration_for_traffic(result)
                     self._store_cache(cache_key, result)
                     return copy.deepcopy(result)
 
@@ -253,6 +623,10 @@ class RouteOptimizer:
                 'duration': feature['properties']['segments'][0]['duration'],
                 'steps': feature['properties']['segments'][0].get('steps', [])
             }
+            # Verificar y ajustar por cortes de calles
+            result = self.adjust_route_for_closures(result, start_coords, end_coords)
+            # Ajustar por condiciones de tránsito
+            result = self.adjust_duration_for_traffic(result)
             self._store_cache(cache_key, result)
             return copy.deepcopy(result)
 
@@ -269,6 +643,10 @@ class RouteOptimizer:
                 'steps': r0.get('legs', [{}])[0].get('steps', [])
             }
             if result['geometry']:
+                # Verificar y ajustar por cortes de calles
+                result = self.adjust_route_for_closures(result, start_coords, end_coords)
+                # Ajustar por condiciones de tránsito
+                result = self.adjust_duration_for_traffic(result)
                 self._store_cache(cache_key, result)
                 return copy.deepcopy(result)
 
@@ -286,6 +664,10 @@ class RouteOptimizer:
                     'duration': path.get('time')/1000.0 if path.get('time') else None,
                     'steps': path.get('instructions', [])
                 }
+                # Verificar y ajustar por cortes de calles
+                result = self.adjust_route_for_closures(result, start_coords, end_coords)
+                # Ajustar por condiciones de tránsito
+                result = self.adjust_duration_for_traffic(result)
                 self._store_cache(cache_key, result)
                 return copy.deepcopy(result)
         
@@ -305,6 +687,10 @@ class RouteOptimizer:
             'duration': estimated_duration,
             'steps': []
         }
+        # Verificar y ajustar por cortes de calles incluso en fallback
+        result = self.adjust_route_for_closures(result, start_coords, end_coords)
+        # Ajustar por condiciones de tránsito
+        result = self.adjust_duration_for_traffic(result)
         self._store_cache(cache_key, result)
         return copy.deepcopy(result)
 
@@ -436,6 +822,126 @@ class RouteOptimizer:
                 filtered.append(p)
         return filtered
 
+    def find_emergency_parking(self, location_coords: Tuple[float, float], 
+                             max_distance_meters: float = 500,
+                             min_spaces_required: int = 1) -> List[Dict]:
+        """
+        Encuentra lugares de estacionamiento disponibles para emergencias cerca de una ubicación
+        """
+        from .models import ParkingSpot  # Import aquí para evitar circular imports
+
+        lat, lon = location_coords
+
+        # Buscar estacionamientos disponibles dentro del radio especificado
+        available_parking = ParkingSpot.objects.filter(
+            is_active=True,
+            available_spaces__gte=min_spaces_required
+        ).extra(
+            select={'distance': '6371000 * 2 * ASIN(SQRT(POWER(SIN((%s - lat) * PI() / 360), 2) + COS(%s * PI() / 180) * COS(lat * PI() / 180) * POWER(SIN((%s - lon) * PI() / 360), 2)))'},
+            select_params=[lat, lat, lon],
+            where=[f'distance <= {max_distance_meters}']
+        ).order_by('distance')[:10]  # Top 10 más cercanos
+
+        parking_options = []
+        for spot in available_parking:
+            distance = getattr(spot, 'distance', 0)
+            walking_time_minutes = (distance / 1000) / 5 * 60  # Asumiendo 5 km/h de caminata
+
+            parking_options.append({
+                'id': spot.external_id,
+                'name': spot.name,
+                'address': spot.address,
+                'lat': spot.lat,
+                'lon': spot.lon,
+                'distance_meters': distance,
+                'walking_time_minutes': walking_time_minutes,
+                'total_spaces': spot.total_spaces,
+                'available_spaces': spot.available_spaces,
+                'spot_type': spot.spot_type,
+                'is_paid': spot.is_paid,
+                'max_duration_hours': spot.max_duration_hours,
+                'occupancy_rate': spot.occupancy_rate,
+            })
+
+        logger.info(f"🏪 Encontrados {len(parking_options)} lugares de estacionamiento disponibles dentro de {max_distance_meters}m")
+        return parking_options
+
+    def find_parking_route(self, vehicle_coords: Tuple[float, float], 
+                          parking_coords: Tuple[float, float],
+                          emergency_coords: Tuple[float, float]) -> Dict:
+        """
+        Calcula ruta desde vehículo hasta estacionamiento y luego a la emergencia
+        """
+        # Ruta vehículo -> estacionamiento
+        parking_route = self.get_best_route(vehicle_coords, parking_coords)
+
+        # Ruta estacionamiento -> emergencia (a pie)
+        walking_distance = self.calculate_distance(
+            parking_coords[0], parking_coords[1],
+            emergency_coords[0], emergency_coords[1]
+        )
+        walking_time = (walking_distance / 1000) / 5 * 60 * 60  # 5 km/h = tiempo en segundos
+
+        return {
+            'driving_route': parking_route,
+            'walking_distance_meters': walking_distance,
+            'walking_time_seconds': walking_time,
+            'total_eta_seconds': parking_route['duration'] + walking_time,
+            'parking_coords': parking_coords,
+            'emergency_coords': emergency_coords,
+        }
+
+    def get_emergency_parking_plan(self, vehicle_coords: Tuple[float, float],
+                                 emergency_coords: Tuple[float, float],
+                                 max_parking_distance: float = 300) -> Dict:
+        """
+        Crea un plan completo de estacionamiento para una emergencia
+        """
+        # Encontrar opciones de estacionamiento
+        parking_options = self.find_emergency_parking(
+            emergency_coords, 
+            max_distance_meters=max_parking_distance
+        )
+
+        if not parking_options:
+            return {
+                'success': False,
+                'message': f'No se encontraron lugares de estacionamiento disponibles dentro de {max_parking_distance}m',
+                'parking_options': [],
+                'recommended_plan': None
+            }
+
+        # Evaluar cada opción de estacionamiento
+        evaluated_options = []
+        for parking in parking_options:
+            parking_coords = (parking['lat'], parking['lon'])
+
+            # Calcular ruta completa
+            route_plan = self.find_parking_route(vehicle_coords, parking_coords, emergency_coords)
+
+            # Calcular score (menor tiempo total = mejor)
+            total_time = route_plan['total_eta_seconds']
+            distance_penalty = parking['distance_meters'] / 100  # Penalización por distancia
+            score = total_time + distance_penalty
+
+            evaluated_options.append({
+                'parking_info': parking,
+                'route_plan': route_plan,
+                'total_eta_minutes': total_time / 60,
+                'score': score,
+            })
+
+        # Ordenar por score (menor = mejor)
+        evaluated_options.sort(key=lambda x: x['score'])
+
+        best_option = evaluated_options[0] if evaluated_options else None
+
+        return {
+            'success': True,
+            'parking_options': evaluated_options,
+            'recommended_plan': best_option,
+            'total_options': len(evaluated_options)
+        }
 def get_route_optimizer():
     """Factory function para obtener instancia del optimizador"""
     return RouteOptimizer()
@@ -660,5 +1166,10 @@ def get_real_time_eta(start_coords: Tuple[float, float],
         'eta_minutes': route_info['duration'] / 60,
         'distance_km': route_info['distance'] / 1000,
         'route_geometry': route_info['geometry'],
-        'provider': route_info['provider']
+        'provider': route_info['provider'],
+        'closures_warning': route_info.get('closures_warning'),
+        'intersects_closures': route_info.get('intersects_closures', False),
+        'congestion_factor': route_info.get('congestion_factor', 1.0),
+        'traffic_adjusted': route_info.get('traffic_adjusted', False),
+        'closures_avoided': route_info.get('closures_avoided', 0),
     }
