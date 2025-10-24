@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 from django.conf import settings
+import os
 
 from .ai import get_ai_classification_with_response
 
@@ -110,11 +111,16 @@ class CloudAIClient:
         self.provider = getattr(settings, 'AI_PROVIDER', 'openai').lower()
         self.timeout = getattr(settings, 'AI_TIMEOUT', 20)
         self.max_retries = max(1, getattr(settings, 'AI_MAX_RETRIES', 3))
+        # Caché de token para Watson IAM
+        self._watson_token: Optional[str] = None
+        self._watson_token_expires_at: Optional[float] = None
 
     def classify(self, description: str) -> Optional[Dict[str, Any]]:
         if not description:
             return None
 
+        if self.provider == 'watson':
+            return self._call_watson(description)
         if self.provider == 'openai':
             return self._call_openai(description)
         if self.provider == 'ollama':
@@ -175,6 +181,149 @@ class CloudAIClient:
 
         if last_error:
             logger.error("Fallo en OpenAI luego de %s intentos: %s", self.max_retries, last_error)
+        return None
+
+    def _call_watson(self, description: str) -> Optional[Dict[str, Any]]:
+        """
+        Integración con Watson Orchestrate LLM.
+        Utiliza el agente configurado con Knowledge Source para clasificar emergencias.
+        """
+        api_key = getattr(settings, 'WATSON_API_KEY', None)
+        instance_url = getattr(settings, 'WATSON_INSTANCE_URL', None)
+
+        if not api_key or not instance_url:
+            logger.warning("WATSON_API_KEY o WATSON_INSTANCE_URL no configuradas")
+            return None
+
+        # Intentar intercambiar la API key por un JWT (IAM token) y cachearlo
+        token = self._get_watson_jwt(api_key)
+        
+        # Watson Orchestrate usa el formato de chat con el agente
+        url = f"{instance_url.rstrip('/')}/v1/chat/completions"
+
+        # Si el intercambio IAM falla, usar x-api-key directamente (algunas instancias de Watson lo soportan)
+        if token:
+            logger.debug("Usando token IAM Bearer para Watson")
+            headers = {
+                'Authorization': f'Bearer {token}',
+                'Content-Type': 'application/json'
+            }
+        else:
+            logger.warning("No se pudo obtener token IAM, intentando con x-api-key directamente")
+            headers = {
+                'x-api-key': api_key,
+                'Content-Type': 'application/json'
+            }
+
+        # Construir el prompt que el agente Watson entenderá
+        user_prompt = (
+            f"Clasifica la siguiente emergencia de CABA según el schema JSON del sistema:\n\n"
+            f"Descripción: {description}\n\n"
+            f"Responde SOLO con el JSON de clasificación que incluya: tipo, codigo, score, razones, respuesta_ia y recursos."
+        )
+
+        payload = {
+            'messages': [
+                {'role': 'system', 'content': SYSTEM_PROMPT},
+                {'role': 'user', 'content': user_prompt}
+            ],
+            'temperature': 0,
+            'max_tokens': 500
+        }
+
+        last_error: Optional[str] = None
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                response = requests.post(url, headers=headers, json=payload, timeout=self.timeout)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    choices = data.get('choices') or []
+                    if not choices:
+                        last_error = 'Respuesta sin choices'
+                        continue
+                    
+                    content = choices[0].get('message', {}).get('content')
+                    if not content:
+                        last_error = 'Respuesta sin contenido'
+                        continue
+                    
+                    parsed = _parse_json_content(content)
+                    if parsed:
+                        logger.info("Watson Orchestrate clasificó exitosamente la emergencia")
+                        return parsed
+                elif response.status_code == 401:
+                    last_error = "API Key inválida o expirada"
+                    logger.error("Watson API Key inválida o token rechazado")
+                    break
+                else:
+                    last_error = f"HTTP {response.status_code}: {response.text[:200]}"
+                    
+            except requests.RequestException as exc:
+                last_error = str(exc)
+
+            if attempt < self.max_retries:
+                time.sleep(min(2 ** attempt, 5))
+
+        if last_error:
+            logger.error("Fallo en Watson Orchestrate luego de %s intentos: %s", self.max_retries, last_error)
+        return None
+
+    def _get_watson_jwt(self, api_key: str) -> Optional[str]:
+        """
+        Intercambia una API key de IBM por un token IAM (access_token) usando el endpoint de IAM.
+        Cachea el token hasta su expiración para evitar llamadas repetidas.
+        """
+        # Si tenemos token y no ha expirado, devolverlo
+        now = time.time()
+        if self._watson_token and self._watson_token_expires_at and now < self._watson_token_expires_at:
+            return self._watson_token
+
+        # Endpoint de IAM para intercambiar apikey por access_token
+        iam_url = getattr(settings, 'WATSON_IAM_URL', '') or 'https://iam.cloud.ibm.com/identity/token'
+
+        # Algunos deployments (por ejemplo la oferta AWS mencionada en la doc) usan
+        # un endpoint distinto que espera JSON en vez de form-encoded:
+        # https://iam.platform.saas.ibm.com/siusermgr/api/1.0/apikeys/token
+        use_json = 'platform.saas.ibm.com' in iam_url or '/siusermgr/api/1.0/apikeys/token' in iam_url
+
+        try:
+            if use_json:
+                headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
+                payload = {'apikey': api_key}
+                logger.debug("Intercambiando API key contra IAM (JSON endpoint) %s", iam_url)
+                resp = requests.post(iam_url, json=payload, headers=headers, timeout=10)
+            else:
+                headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+                data = {
+                    'grant_type': 'urn:ibm:params:oauth:grant-type:apikey',
+                    'apikey': api_key
+                }
+                logger.debug("Intercambiando API key contra IAM (form endpoint) %s", iam_url)
+                resp = requests.post(iam_url, data=data, headers=headers, timeout=10)
+
+            if resp.status_code != 200:
+                logger.error("Fallo intercambiando API key por token IAM: HTTP %s %s", resp.status_code, resp.text[:400])
+                return None
+
+            j = resp.json()
+            # Respuesta puede variar: buscaremos access_token o token en campos comunes
+            access_token = j.get('access_token') or j.get('token') or j.get('jwt')
+            expires_in = j.get('expires_in') or j.get('expiration') or j.get('expires') or 3600
+            if access_token:
+                # Guardar token y expiración (con buffer de 30s)
+                self._watson_token = access_token
+                try:
+                    exp = int(expires_in)
+                except Exception:
+                    exp = 3600
+                self._watson_token_expires_at = time.time() + max(0, exp - 30)
+                return access_token
+            else:
+                logger.error("Respuesta IAM no contenía access_token: %s", j)
+        except requests.RequestException as exc:
+            logger.error("Excepción al contactar IAM de IBM: %s", exc)
+
         return None
 
     def _call_ollama(self, description: str) -> Optional[Dict[str, Any]]:
@@ -254,9 +403,44 @@ def get_ai_status() -> Dict[str, Any]:
         'details': {}
     }
 
-    if provider == 'openai':
+    if provider == 'watson':
+        api_key = getattr(settings, 'WATSON_API_KEY', None)
+        instance_url = getattr(settings, 'WATSON_INSTANCE_URL', None)
+        if api_key and instance_url:
+            # Intentar intercambiar la API key por token IAM para una verificación precisa
+            client = CloudAIClient()
+            token = client._get_watson_jwt(api_key)
+            if not token:
+                status['details']['last_error'] = 'No se pudo obtener token IAM para la API key proporcionada'
+            else:
+                headers = {'Authorization': f'Bearer {token}'}
+                # Verificar conectividad básica con Watson usando el token
+                try:
+                    url = f"{instance_url.rstrip('/')}/v1/models"
+                    response = requests.get(url, headers=headers, timeout=5)
+                    status['cloud_available'] = response.status_code in [200, 404]
+                    if not status['cloud_available']:
+                        status['details']['last_error'] = f"HTTP {response.status_code}: {response.text[:200]}"
+                    else:
+                        status['details']['message'] = 'Watson Orchestrate conectado (token IAM obtenido)'
+                except requests.RequestException as exc:
+                    status['details']['last_error'] = str(exc)
+        else:
+            missing = []
+            if not api_key:
+                missing.append('WATSON_API_KEY')
+            if not instance_url:
+                missing.append('WATSON_INSTANCE_URL')
+            status['details']['last_error'] = f"Configuración faltante: {', '.join(missing)}"
+    elif provider == 'openai':
         api_key = getattr(settings, 'OPENAI_API_KEY', None)
         model = getattr(settings, 'OPENAI_MODEL', 'gpt-4o-mini')
+        # Si el sistema está corriendo en modo offline, no reportamos errores de keys para la nube
+        env_offline = os.environ.get('AI_OFFLINE') or os.environ.get('ROUTING_OFFLINE')
+        if isinstance(env_offline, str):
+            env_offline = env_offline.strip().lower() in ('1', 'true', 'yes', 'on')
+        else:
+            env_offline = bool(env_offline)
         if api_key:
             headers = {'Authorization': f'Bearer {api_key}'}
             base_url = getattr(settings, 'OPENAI_API_BASE', 'https://api.openai.com/v1').rstrip('/')
@@ -269,7 +453,8 @@ def get_ai_status() -> Dict[str, Any]:
             except requests.RequestException as exc:
                 status['details']['last_error'] = str(exc)
         else:
-            status['details']['last_error'] = 'OPENAI_API_KEY no configurada'
+            if not env_offline:
+                status['details']['last_error'] = 'OPENAI_API_KEY no configurada'
     elif provider == 'ollama':
         base_url = getattr(settings, 'OLLAMA_BASE_URL', None)
         if base_url:

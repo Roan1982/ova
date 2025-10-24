@@ -1,0 +1,673 @@
+{% extends 'core/base.html' %}
+{% block title %}Presentación - Demo OVA{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    #map { height: 60vh; margin-bottom: 12px; border-radius:8px; overflow:hidden }
+    .card { padding: 12px; margin-bottom: 12px; border-radius: 6px; }
+    .btn { background:#0078d4;color:white;padding:8px 12px;border-radius:4px;border:none;cursor:pointer }
+    /* ETA bar inside AI table */
+    .eta-bar { height:8px; background:#0b6; border-radius:4px; display:inline-block; vertical-align:middle }
+    .eta-cell { width:120px }
+    /* pulsing marker style (for closure visualization) */
+    .pulse-marker { width:18px; height:18px; border-radius:50%; background:rgba(255,0,0,0.9); box-shadow:0 0 12px 4px rgba(255,0,0,0.35); }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <div class="card">
+    <h2>Demostración guiada: OVA</h2>
+    <p>Esta presentación guiada muestra el flujo completo del sistema OVA: desde la creación de una emergencia hasta la llegada de la unidad. Verás cómo la IA clasifica, cómo se optimiza la ruta (con fallback local cuando no hay APIs) y qué medidas de resiliencia se aplican (onda verde, desvíos, fallback grid).</p>
+    <ul>
+      <li>Objetivo: ilustrar funciones clave para operadores y responsables técnicos.</li>
+      <li>Modo: demo totalmente local y silenciosa (no requiere claves API cuando se ejecuta con <code>ROUTING_OFFLINE=1</code>).</li>
+      <li>Usos: presentación ejecutiva, pruebas funcionales y demostraciones en ferias/meetups.</li>
+    </ul>
+  </div>
+
+  <div id="formCard" class="card">
+    <h4>Formulario de reporte (ejemplo)</h4>
+    <form>
+      <label>Nombre del reportante</label><br/>
+      <input type="text" placeholder="Ej: Juan Pérez" style="width:100%;padding:6px;border-radius:4px;margin-bottom:6px" />
+      <label>Descripción breve</label><br/>
+      <textarea placeholder="Ej: Persona herida, posible agresión" style="width:100%;height:70px;padding:6px;border-radius:4px;margin-bottom:6px"></textarea>
+      <label>Ubicación (seleccione en mapa al despachar)</label><br/>
+      <input type="text" placeholder="Ej: Av. 9 de Julio 1000" style="width:100%;padding:6px;border-radius:4px;margin-bottom:6px" />
+      <div style="font-size:13px;color:#666">Nota: en esta demo la selección de lat/lon se simula al despachar la unidad.</div>
+    </form>
+  </div>
+
+  <div id="aiPanel" class="card" style="display:none">
+    <h4>Análisis IA (simulado)</h4>
+    <div id="aiSummary" style="white-space:pre-wrap;font-size:13px;color:#cfe8ff"></div>
+    <h5 style="margin-top:8px">Recursos cercanos y ETA estimados</h5>
+    <table id="aiResources" style="width:100%;border-collapse:collapse;font-size:13px;color:#cfe8ff">
+      <thead><tr><th style="text-align:left">Recurso</th><th>Tipo</th><th>Distancia</th><th>ETA (min)</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div style="font-size:13px;margin-top:8px;color:#9fb6d6">La IA revisa disponibilidad, estado y proximidad de agentes/móviles para priorizar envíos.</div>
+  </div>
+
+  <div id="map" style="display:none"></div>
+
+  <div class="card">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button id="startBtn" class="btn">Iniciar presentación</button>
+  <button id="forceCutBtn" class="btn" style="background:#c9302c">Forzar corte</button>
+      <label style="display:inline-flex;align-items:center;gap:6px;color:#222;margin-left:6px">Velocidad:</label>
+      <select id="speedSelect" style="padding:6px;border-radius:4px">
+        <option value="0.5">0.5x (lenta)</option>
+        <option value="1" selected>1x (normal)</option>
+        <option value="2">2x (rápida)</option>
+      </select>
+      <button id="pauseBtn" class="btn" style="background:#f0ad4e;">Pausa</button>
+      <button id="resumeBtn" class="btn" style="background:#28a745;">Reanudar</button>
+      <button id="prevBtn" class="btn" style="background:#6c757d;">Anterior</button>
+      <button id="nextBtn" class="btn" style="background:#6c757d;">Siguiente</button>
+      <button id="resetBtn" class="btn" style="background:#666;">Reiniciar</button>
+      <button id="speakBtn" class="btn" style="background:#0056b3">Narración TTS</button>
+      <button id="fastAdvanceBtn" class="btn" style="background:#a43;">Avance rápido unidad</button>
+    </div>
+  </div>
+
+  <div id="info" class="card">
+    <h4>Estado</h4>
+    <div id="status">Inactivo</div>
+    <h4>Detalles</h4>
+    <pre id="details" style="white-space:pre-wrap"></pre>
+  </div>
+
+  <div class="card">
+    <h4>Funcionalidades destacadas</h4>
+    <ul>
+      <li>Clasificación automática de emergencias (core/llm.py) con fallback local.</li>
+      <li>Optimización multi-proveedor de rutas con cache y fallback grid (core/routing.py).</li>
+      <li>Gestión de cortes de calles y recalculo de rutas.</li>
+      <li>Planes de estacionamiento de emergencia y cálculo de ETA (core/routing.py).</li>
+      <li>Poblado de datos de prueba offline para demostraciones y tests.</li>
+    </ul>
+    <h4>Capturas de código (ejemplos)</h4>
+    <div style="background:#071026;padding:10px;border-radius:6px;color:#e6eef6;margin-top:8px">
+      <strong>Formulario de creación de emergencia (plantilla)</strong>
+  <pre style="background:#021224;padding:8px;border-radius:6px;overflow:auto;margin-top:6px;font-size:13px;color:#cfe8ff">{% verbatim %}{% extends 'core/base.html' %}
+{% block title %}Reportar Emergencia{% endblock %}
+&lt;form method="post"&gt; ... &lt;input id="id_location_lat" name="location_lat" /&gt; &lt;input id="id_location_lon" name="location_lon" /&gt;{% endverbatim %}</pre>
+      <div style="font-size:13px;margin-top:6px">Este formulario usa Leaflet para seleccionar la ubicación y Nominatim para autocompletar direcciones (en modo demo). Los campos lat/lon guardan la posición para persistir la Emergency en la base.</div>
+    </div>
+
+    <div style="background:#071026;padding:10px;border-radius:6px;color:#e6eef6;margin-top:10px">
+      <strong>Ejemplo: respuesta de la IA (JSON esperado)</strong>
+      <pre style="background:#021224;padding:8px;border-radius:6px;overflow:auto;margin-top:6px;font-size:13px;color:#cfe8ff">{
+  "tipo": "policial",
+  "codigo": "rojo",
+  "score": 95,
+  "razones": ["víctima con heridas", "denuncias previas en el lugar"],
+  "respuesta_ia": "Enviar 2 patrullas y 1 unidad médica si es necesario",
+  "recursos": [{"tipo":"patrulla","cantidad":2,"detalle":"Unidad móvil urbana"}]
+}</pre>
+      <div style="font-size:13px;margin-top:6px">`core/llm.py` espera/normaliza JSON como el anterior. La demo muestra el flujo con fallback local si la nube no está disponible.</div>
+    </div>
+    <div style="background:#071026;padding:10px;border-radius:6px;color:#e6eef6;margin-top:10px">
+      <strong>Ruteo: orden de preferencia y fallback</strong>
+      <pre style="background:#021224;padding:8px;border-radius:6px;overflow:auto;margin-top:6px;font-size:13px;color:#cfe8ff"># Orden de preferencia en core/routing.py
+# 1. Mapbox (si hay key)
+# 2. OpenRouteService (si hay key)
+# 3. OSRM público (multi-host)
+# 4. GraphHopper (si hay key)
+# 5. Fallback GRID (generado localmente)
+if self.mapbox_key: ...
+route = self.get_route_openroute(...) 
+route = self.get_route_osrm(...) 
+# si nada → _generate_grid_path(...)</pre>
+      <div style="font-size:13px;margin-top:6px">El optimizador intenta proveedores en orden y almacena en cache el resultado; si todos fallan usa el fallback grid local para garantizar una ETA estimada.</div>
+    </div>
+
+    <div style="background:#071026;padding:10px;border-radius:6px;color:#e6eef6;margin-top:10px">
+      <strong>Asignación de recursos (fragmento)</strong>
+      <pre style="background:#021224;padding:8px;border-radius:6px;overflow:auto;margin-top:6px;font-size:13px;color:#cfe8ff"># En calculate_emergency_routes
+# Se prioriza fuerza asignada por IA, luego se filtran vehículos por estado y ubicación
+for vehicle in Vehicle.objects.filter(status__in=status_list):
+    # calcular prioridad basada en tipo y fuerza
+    priority_multiplier = resource_priority.get(force_name,0) + resource_priority.get(vehicle_type,0)
+    if priority_multiplier <= 0: continue
+    candidate = {...}
+assignments = optimizer.find_optimal_assignments(emergency_coords, available_resources)
+# luego se ordena y se devuelven las mejores rutas
+</pre>
+      <div style="font-size:13px;margin-top:6px">La IA devuelve una recomendación (ej. 'policía: 2 patrullas') y el sistema prioriza recursos que coinciden con esa recomendación. El optimizador calcula ETA/route para cada candidato.</div>
+    </div>
+    <h4>Instrucciones rápidas</h4>
+    <ol>
+      <li>Abrí esta página en un navegador moderno (Chromium/Firefox).</li>
+      <li>Presioná <b>Iniciar presentación</b> para empezar el recorrido automatizado.</li>
+      <li>Usá Pausa/Reanudar/Anterior/Siguiente para controlar la presentación.</li>
+    </ol>
+  </div>
+
+  <div id="metricsCard" class="card" style="display:none">
+    <h4>Métricas del recorrido</h4>
+    <div id="metricsContent" style="font-size:13px;white-space:pre-wrap;color:#cfe8ff"></div>
+  </div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // Copiado del demo offline para funcionar dentro de la plantilla
+    const map = L.map('map').setView([-34.6037, -58.3816], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    const geo = {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-58.3816, -34.6037],
+          [-58.3790, -34.6050],
+          [-58.3770, -34.6100]
+        ]
+      },
+      "properties": {}
+    };
+
+    const coords = geo.geometry.coordinates.map(c => [c[1], c[0]]);
+    const poly = L.polyline(coords, {color: 'red', weight:4}).addTo(map);
+    // demoRoute will be the route used for animation; generate a street-like grid path between origin and destination
+    function generateGridPath(start, end){
+      const s_lat = start[0], s_lon = start[1];
+      const e_lat = end[0], e_lon = end[1];
+      const points = [];
+      points.push([s_lat, s_lon]);
+      const d_lat = e_lat - s_lat;
+      const d_lon = e_lon - s_lon;
+      const frac1 = 0.35, frac2 = 0.65;
+      const mid1_lat = s_lat + d_lat * frac1;
+      const mid2_lat = s_lat + d_lat * frac2;
+      const offset_lat = Math.abs(d_lat) > 0.002 ? 0.0007 : 0.0004;
+      const offset_lon = Math.abs(d_lon) > 0.002 ? 0.0007 : 0.0004;
+      // move latitude part
+      points.push([mid1_lat, s_lon]);
+      // lateral offset
+      points.push([mid1_lat, s_lon + offset_lon * (d_lon>=0 ? 1 : -1)]);
+      points.push([mid2_lat, s_lon + offset_lon * (d_lon>=0 ? 1 : -1)]);
+      const half_lon = s_lon + d_lon * 0.5;
+      points.push([mid2_lat + offset_lat * (d_lat>=0 ? 1 : -1), half_lon]);
+      points.push([e_lat, half_lon]);
+      points.push([e_lat, e_lon]);
+      // filter consecutive duplicates
+      const filtered = [];
+      for(const p of points){
+        if(!filtered.length || Math.abs(filtered[filtered.length-1][0]-p[0])>1e-6 || Math.abs(filtered[filtered.length-1][1]-p[1])>1e-6){
+          filtered.push(p);
+        }
+      }
+      return filtered;
+    }
+    // initial demo route (grid-like) between start and end
+    let demoRoute = generateGridPath(coords[0], coords[coords.length-1]);
+    // Try to fetch a real CalculatedRoute from the backend demo API (if available) and use its geometry
+    (async function tryLoadRealRoute(){
+      try{
+        const res = await fetch('/api/demo/calculated_route/');
+        if(res && res.ok){
+          const j = await res.json();
+          if(j && j.success && j.route && j.route.route_geometry && Array.isArray(j.route.route_geometry.coordinates)){
+            const coordsRaw = j.route.route_geometry.coordinates; // [lon, lat] pairs
+            const converted = coordsRaw.map(c => [c[1], c[0]]);
+            // if the returned geometry has more than 2 points, use it as demoRoute
+            if(converted.length >= 2){
+              demoRoute = converted;
+              // if a routeLayer already exists, update it
+              try{ if(routeLayer) { map.removeLayer(routeLayer); routeLayer = L.polyline(demoRoute, {color:'blue', weight:5, opacity:0.9}).addTo(map); map.fitBounds(routeLayer.getBounds(), {padding:[50,50]}); } }catch(e){}
+            }
+          }
+        }
+      }catch(e){ /* ignore - fallback stays */ }
+    })();
+    map.fitBounds(poly.getBounds(), {padding:[50,50]});
+    const startMarker = L.circleMarker(coords[0], {radius:6, color:'green'}).addTo(map).bindPopup('Origen');
+    const endMarker = L.circleMarker(coords[coords.length-1], {radius:6, color:'red'}).addTo(map).bindPopup('Destino');
+  // Layers we'll toggle during the demo
+  let routeLayer = null;
+  let altRouteLayer = null;
+  let closureLayer = null;
+  let dispatchedVehicle = null;
+  let demoStartTime = null;
+  let demoEndTime = null;
+  let closureTime = null;
+  let rerouteExtraSeconds = 0;
+
+  let baseDurationSeconds = 6 * 60; // 6 minutos base
+    let animMarker = L.circleMarker(coords[0], {radius:7, color:'#0078d4', fillOpacity:1}).addTo(map);
+  let animDurationOverride = null;
+  let speedMultiplier = 1.0;
+
+    // Reutilizar funciones y pasos del demo principal (simplificado)
+  let closureTriggered = false;
+    let currentAnimation = null;
+  function animateRoute(durationSec, routeCoords = demoRoute) {
+      // return a promise that resolves when this animation finishes or is interrupted
+      if(currentAnimation && currentAnimation.cancel) currentAnimation.cancel();
+      closureTriggered = false;
+      const controller = { canceled:false, cancel(){ this.canceled = true; } };
+      currentAnimation = controller;
+      return new Promise((resolve)=>{
+        const effectiveDuration = Math.max(1, durationSec / speedMultiplier);
+        const start = Date.now();
+        const total = effectiveDuration * 1000;
+        function step(){
+          if(controller.canceled){ resolve('canceled'); return; }
+          const now = Date.now();
+          const t = Math.min(1, (now - start) / total);
+          const point = interpolateCoords(routeCoords, t);
+          animMarker.setLatLng(point);
+          const remainingSec = Math.max(0, Math.round((1-t) * durationSec));
+            document.getElementById('status').innerText = 'En ruta — ETA: ' + Math.max(0, Math.round(remainingSec/60)) + ' min';
+          document.getElementById('details').innerText = `Progreso: ${(t*100).toFixed(1)}%\nProveedor: DemoFallback\nOnda verde: Activada\nTiempo estimado inicial: ${Math.round(durationSec/60)} min\nVelocidad demo: ${speedMultiplier}x`;
+          // If a closure is triggered during this animation, interrupt and resolve so caller can handle reroute
+            if(closureTriggered){ resolve('closure'); return; }
+          if(t < 1) requestAnimationFrame(step);
+          else { document.getElementById('status').innerText = 'En escena — llegada'; resolve('finished'); }
+        }
+          requestAnimationFrame(step);
+      });
+    }
+
+    function computeRouteDistance(routeCoords){
+      let d = 0;
+      for(let i=0;i<routeCoords.length-1;i++){ d += map.distance(routeCoords[i], routeCoords[i+1]); }
+      return d; // meters
+    }
+
+    function formatMeters(m){
+      if(m >= 1000) return (m/1000).toFixed(2) + ' km';
+      return Math.round(m) + ' m';
+    }
+
+    function simulateNearbyVehicles(origin){
+      // generate 4 nearby vehicles with random offsets and speeds
+      const types = ['patrulla','unidad médica','moto'];
+      const vehicles = [];
+      for(let i=0;i<4;i++){
+        const offsetLat = (Math.random()-0.5) * 0.02;
+        const offsetLon = (Math.random()-0.5) * 0.02;
+        const pos = [ origin[0] + offsetLat, origin[1] + offsetLon ];
+        const distance = map.distance(pos, origin);
+        const speedKmh = 30 + Math.random()*40; // km/h
+        const etaMin = Math.max(1, Math.round((distance/1000) / (speedKmh/60)) );
+        vehicles.push({ name: 'Veh ' + (i+1), type: types[i%types.length], pos, distance, etaMin });
+      }
+    vehicles.sort((a,b)=>a.etaMin - b.etaMin);
+      return vehicles;
+    }
+
+    function showPanel(id){
+      ['formCard','aiPanel','map'].forEach(k=>{
+        const el = document.getElementById(k);
+        if(!el) return;
+        if(k === id) el.style.display = (k==='map'? 'block':'block');
+        else el.style.display = (k==='map'? 'none':'none');
+      });
+      // if map is shown, ensure layout
+      if(id === 'map') setTimeout(()=>{ try{ map.invalidateSize(); map.fitBounds(poly.getBounds(), {padding:[50,50]}); }catch(e){} }, 200);
+    }
+
+    function interpolateCoords(pts, t) {
+      const lengths = []; let total = 0;
+      for (let i=0;i<pts.length-1;i++){ const d = map.distance(pts[i], pts[i+1]); lengths.push(d); total += d; }
+      let dist = t * total;
+      for (let i=0;i<lengths.length;i++){
+        if (dist <= lengths[i]){
+          const a=pts[i], b=pts[i+1], r=dist/lengths[i];
+          return [ a[0] + (b[0]-a[0])*r, a[1] + (b[1]-a[1])*r ];
+        }
+        dist -= lengths[i];
+      }
+      return pts[pts.length-1];
+    }
+
+    // Steps (same order, more explicit text for presentation)
+    const steps = [
+      {id:'intro', title:'Pasos del flujo', text:'1) Registrar la emergencia: operador o formulario móvil captura ubicación y descripción.\n2) Normalizar datos y persistir Emergency en DB.\n3) IA clasifica prioridad y recomienda recursos (tipo/cantidad).\n4) Optimizador prueba proveedores de ruteo y calcula ETA; si fallan, usa fallback grid.\n5) Despacho: se asigna unidad y aplica medidas (onda verde, desvíos) durante el trayecto.\n6) En camino: se monitoriza progreso, recalcula rutas si hay cierres y ajusta ETA.\n7) Llegada y cierre: registrar tiempos y métricas.', action:()=>{
+        document.getElementById('status').innerText='Pasos del flujo';
+        document.getElementById('details').innerText = '1) Registrar la emergencia: operador o formulario móvil captura ubicación y descripción.\n\n'
+          + '2) Normalizar datos y persistir Emergency en DB.\n\n'
+          + '3) IA clasifica prioridad y recomienda recursos (tipo/cantidad).\n\n'
+          + '4) Optimizador prueba proveedores de ruteo y calcula ETA; si fallan, usa fallback grid.\n\n'
+          + '5) Despacho: se asigna unidad y aplica medidas (onda verde, desvíos) durante el trayecto.\n\n'
+          + '6) En camino: se monitoriza progreso, recalcula rutas si hay cierres y ajusta ETA.\n\n'
+          + '7) Llegada y cierre: registrar tiempos y métricas.';
+        // add a visual marker to show the emergency point
+        L.circle(coords[coords.length-1], {radius:50, color:'#990000', fillOpacity:0.08}).addTo(map);
+  } },
+      {id:'create', title:'Creación', text:'Se registra la emergencia en la ubicación destino', action:()=>{
+        document.getElementById('status').innerText='Emergencia creada';
+        // pull values from the sample form to make it feel connected
+        const reporter = document.querySelector('#formCard input')?.value || 'Anónimo';
+        const desc = document.querySelector('#formCard textarea')?.value || 'Sin descripción';
+        document.getElementById('details').innerText=`Reportante: ${reporter}\nDescripción: ${desc}\nArchivo: core/models.py — modelo Emergency`;
+        L.circle(coords[coords.length-1], {radius:40, color:'#990000', fillOpacity:0.15}).addTo(map);
+        // transition to AI panel next
+        showPanel('aiPanel');
+      } },
+      {id:'classify', title:'Clasificación', text:'IA clasifica prioridad y recomienda recursos.', action:async ()=>{
+        document.getElementById('status').innerText='Clasificación: ROJO';
+        poly.setStyle({color:'#ff0000', weight:5});
+        // Narración detallada del proceso de selección
+        await speakText('La IA procesa la descripción y normaliza los datos del incidente.');
+        await speakText('Ahora calcula la distancia a los móviles disponibles y estima el tiempo de llegada para cada candidato.');
+        // simulate nearby vehicles and fill ai panel
+        const vehicles = simulateNearbyVehicles(coords[0]);
+        const tbody = document.querySelector('#aiResources tbody');
+        tbody.innerHTML = '';
+        vehicles.forEach((v, idx)=>{
+          const tr = document.createElement('tr');
+          const relative = Math.max(1, vehicles[vehicles.length-1].etaMin || v.etaMin);
+          const width = Math.round((relative - v.etaMin + 1) / relative * 100);
+          tr.innerHTML = `<td style="padding:6px">${v.name}</td><td>${v.type}</td><td>${formatMeters(v.distance)}</td><td class="eta-cell"><div style=\"display:flex;align-items:center;gap:6px\"><div style=\"width:60px;height:8px;background:#222;border-radius:6px;overflow:hidden\"><div class=\"eta-bar\" style=\"width:${Math.max(10,100 - width)}%\"></div></div><div style=\"width:26px;text-align:center\">${v.etaMin}</div></div></td>`;
+          tbody.appendChild(tr);
+        });
+        document.getElementById('aiSummary').innerText = 'La IA revisa agentes y móviles, calcula ETA y prioriza los que llegan más rápido y estén disponibles.';
+        // Highlight chosen vehicle (smallest ETA) and mark it visually on the map
+        const chosen = vehicles[0];
+        dispatchedVehicle = chosen.name + ' (' + chosen.type + ')';
+        // add marker for each vehicle and highlight chosen
+        vehicles.forEach((v, idx)=>{
+          const m = L.circleMarker(v.pos, {radius:6, color: idx===0 ? '#00ff99' : '#888', fillOpacity:1}).addTo(map).bindPopup(`${v.name} — ${v.type}`);
+          if(idx===0){ m.bindPopup(`${v.name} (DESPACHADO)`).openPopup();
+            // highlight row in table
+            tbody.rows[0].style.background = '#0a3';
+            tbody.rows[0].style.color = '#002';
+          }
+        });
+        await speakText(`La IA selecciona ${dispatchedVehicle} porque tiene el menor ETA estimado.`);
+        // Small pause so user can read
+        await new Promise(r => setTimeout(r, 700));
+      } },
+      {id:'greenwave', title:'Onda Verde', text:'Se activa Onda Verde y se reduce ETA.', action:()=>{
+        document.getElementById('status').innerText='Onda Verde activada';
+        for (let i=0;i<coords.length-1;i++){ L.polyline([coords[i],coords[i+1]], {color:'lime', weight:6, opacity:0.9}).addTo(map);} 
+        animDurationOverride = Math.round(baseDurationSeconds*0.7);
+        document.getElementById('details').innerText='Onda Verde aplicada (simulado): semáforos favorecen paso de unidad';
+      } },
+      {id:'dispatch', title:'Despacho', text:'Se asigna la unidad y parte hacia la emergencia.', action:()=>{
+  document.getElementById('status').innerText='Unidad en desplazamiento';
+  document.getElementById('details').innerText='Se persiste CalculatedRoute (core/models.py). El optimizador prueba proveedores y usa fallback grid si es necesario.';
+  // show the map view when dispatching
+  showPanel('map');
+        // Reveal the map panel and ensure Leaflet draws correctly
+        const mapEl = document.getElementById('map');
+        if(mapEl.style.display === 'none'){
+          mapEl.style.display = 'block';
+          // Allow the browser to layout then invalidate size so tiles/markers render
+          setTimeout(()=>{ try{ map.invalidateSize(); map.fitBounds(poly.getBounds(), {padding:[50,50]}); }catch(e){} }, 200);
+        }
+  // Prepare route layer and basic metrics
+  if(routeLayer) map.removeLayer(routeLayer);
+  // draw the demoRoute (grid-like) so it follows simulated streets
+  demoRoute = generateGridPath(coords[0], coords[coords.length-1]);
+  routeLayer = L.polyline(demoRoute, {color:'blue', weight:5, opacity:0.9}).addTo(map);
+        dispatchedVehicle = ['Patrulla A-12','Unidad Médica U-3','Patrulla B-7'][Math.floor(Math.random()*3)];
+        demoStartTime = Date.now();
+  const routeMeters = computeRouteDistance(demoRoute);
+        const estimatedMinutes = Math.round((animDurationOverride || baseDurationSeconds)/60);
+        document.getElementById('details').innerText += `\n\nVehículo asignado: ${dispatchedVehicle}\nDistancia ruta: ${Math.round(routeMeters)} m\nETA estimada: ${estimatedMinutes} min`;
+        // Start the main animation but schedule an automatic closure event mid-route
+        const fullDurationSec = Math.round((animDurationOverride || baseDurationSeconds));
+        demoStartTime = Date.now();
+        const animStart = Date.now();
+        // schedule automatic closure at ~35% of the route time
+        const closureMs = Math.max(800, Math.round((fullDurationSec * 1000) * 0.35 / Math.max(0.25, speedMultiplier)));
+        const closureTimer = setTimeout(()=>{
+            // trigger closure detection while en ruta
+          closureTime = Date.now();
+          closureTriggered = true;
+          // show pulsing barrier at mid segment (animated)
+          const midIdx = Math.floor(coords.length/2)-1;
+          const midA = coords[midIdx]; const midB = coords[midIdx+1];
+          if(closureLayer) map.removeLayer(closureLayer);
+          closureLayer = L.polyline([midA, midB], {color:'red', weight:12, opacity:0.85}).addTo(map);
+          // add a pulsing circle marker at middle of the segment
+          const midPoint = [(midA[0]+midB[0])/2, (midA[1]+midB[1])/2];
+          const pulse = L.circleMarker(midPoint, {radius:10, color:'#ff4444', fillColor:'#ff4444', fillOpacity:0.7}).addTo(map);
+          let pulseScale = 1; const pulseInt = setInterval(()=>{ pulse.setStyle({radius:10 + Math.abs(Math.sin(pulseScale))*6}); pulseScale += 0.4; }, 220);
+          setTimeout(()=>{ clearInterval(pulseInt); map.removeLayer(pulse); }, 9000);
+        }, closureMs);
+        (async ()=>{
+          // Before starting the animation, narrate and apply a temporary speed boost for the demo
+          const prevSpeed = speedMultiplier;
+          try{
+            // announce acceleration
+            await speakText('Atención: para la demostración vamos a acelerar temporalmente la unidad, así podrá observar el efecto en el ETA.');
+          }catch(e){}
+          // apply stronger temporary boost (4x) for clearer demo effect
+          speedMultiplier = Math.max(4, speedMultiplier * 4);
+          document.getElementById('status').innerText = 'Unidad MUY acelerada para demostración (4x)';
+          // ensure we restore speed after a short period (or after route finishes)
+          let restoreTimer = setTimeout(()=>{ speedMultiplier = prevSpeed; document.getElementById('status').innerText='Velocidad normal restaurada'; }, Math.min(15000, Math.round(fullDurationSec * 1000 * 0.35)));
+
+          const res = await animateRoute(fullDurationSec, coords);
+          clearTimeout(closureTimer);
+          // restore speed immediately when animation ends or is interrupted
+          try{ clearTimeout(restoreTimer); speedMultiplier = prevSpeed; document.getElementById('status').innerText='Velocidad normal restaurada'; }catch(e){}
+
+          if(res === 'closure'){
+            document.getElementById('details').innerText += '\nCorte detectado: recalculando ruta...';
+            // Build an alternative route that starts from the vehicle's current position so it doesn't teleport
+            const curPos = animMarker.getLatLng();
+            // find closest index in coords to the current marker position
+            function findClosestIndex(latlng, pts){
+              let best = 0; let bestD = Infinity;
+              for(let i=0;i<pts.length;i++){
+                const d = map.distance(latlng, pts[i]); if(d < bestD){ bestD = d; best = i; }
+              }
+              return best;
+            }
+            const closestIdx = findClosestIndex(curPos, coords);
+            // start alt route at current marker position and then follow remaining points
+            // compute an alt route from current position to final destination using grid generator
+            const destination = coords[coords.length-1];
+            const alt = generateGridPath([curPos.lat, curPos.lng], destination);
+            if(altRouteLayer) map.removeLayer(altRouteLayer);
+            altRouteLayer = L.polyline(alt, {color:'orange', weight:4, dashArray:'8 6', opacity:0.95}).addTo(map);
+            const rerouteStart = Date.now();
+            await animateRoute(Math.round(fullDurationSec * 0.6), alt);
+            const rerouteEnd = Date.now();
+            rerouteExtraSeconds = Math.round((rerouteEnd - (closureTime || rerouteStart))/1000);
+            demoEndTime = Date.now();
+          } else {
+            demoEndTime = Date.now();
+          }
+        })();
+      } },
+      {id:'inroute', title:'En camino - corte simulado', text:'Se detecta un corte en la vía; se recalcula ruta y se desvía la unidad.', action:()=>{
+        // Instead of waiting to trigger closure, mark closureTriggered so current animation interrupts
+        document.getElementById('status').innerText='Incidencia: corte de calle (se interrumpe y recalcula)';
+        document.getElementById('details').innerText='Corte detectado: el optimizador manda una orden de desvío y genera una ruta alternativa inmediatamente.';
+        closureTriggered = true;
+        // highlight closure visually as a moving barrier
+        const midIdx = Math.floor(coords.length/2)-1;
+        const midA = coords[midIdx];
+        const midB = coords[midIdx+1];
+        if(closureLayer) map.removeLayer(closureLayer);
+        const barrierPoints = [midA, midB];
+        closureLayer = L.polyline(barrierPoints, {color:'red', weight:12, opacity:0.85}).addTo(map);
+        // animate a small 'barrier' pulsing to show blockage
+        let pulse = 0; const interval = setInterval(()=>{ closureLayer.setStyle({opacity: 0.4 + Math.abs(Math.sin(pulse))*0.6}); pulse += 0.4; }, 250);
+        setTimeout(()=>{ clearInterval(interval); }, 8000);
+      } },
+      {id:'arrival', title:'Llegada', text:'Unidad en escena. Registro final.', action:()=>{
+        document.getElementById('status').innerText='Llegada';
+        demoEndTime = demoEndTime || Date.now();
+        const elapsedSec = demoStartTime ? Math.round((demoEndTime - demoStartTime)/1000) : 0;
+        // compute actual distance traveled (prefer alt if exists)
+        const usedRoute = altRouteLayer ? altRouteLayer.getLatLngs().map(p=>[p.lat,p.lng]) : (routeLayer ? routeLayer.getLatLngs().map(p=>[p.lat,p.lng]) : coords);
+        const traveledMeters = Math.round(computeRouteDistance(usedRoute));
+        const actualMinutes = (elapsedSec/60).toFixed(1);
+        const estimatedMinutes = Math.round((animDurationOverride || baseDurationSeconds)/60);
+        const etaError = (elapsedSec/60) - estimatedMinutes;
+        const metrics = `Vehículo: ${dispatchedVehicle || '--'}\nTiempo total real: ${actualMinutes} min\nDistancia recorrida: ${traveledMeters} m\nETA estimada: ${estimatedMinutes} min\nError ETA (real - estimada): ${etaError.toFixed(1)} min\nNotas: registrar en CalculatedRoute y comparar métricas para mejorar modelos.`;
+        document.getElementById('details').innerText = metrics;
+        // Show metrics card with more detail
+        document.getElementById('metricsContent').innerText = `Inicio demo: ${new Date(demoStartTime).toLocaleString()}\nFin demo: ${new Date(demoEndTime).toLocaleString()}\n${metrics}`;
+        document.getElementById('metricsCard').style.display = 'block';
+      } },
+      {id:'issues', title:'Problemas', text:'LLM no JSON / proveedores caídos / datos desactualizados. Soluciones en docs.', action:()=>{document.getElementById('status').innerText='Problemas y soluciones'; document.getElementById('details').innerText='Ver: core/llm.py, core/routing.py, core/transport_client.py';} },
+      {id:'conclusion', title:'Cierre', text:'Fin de la demo', action:()=>{document.getElementById('status').innerText='Fin'; document.getElementById('details').innerText='Recomendaciones: endpoints, tests, métricas';} }
+    ];
+
+  let stepIndex=0; let autoplay=false; let autoTimer=null; let ttsEnabled=true; // enable narration by default
+  function updateSpeedFromControl(){ const s = parseFloat(document.getElementById('speedSelect').value||'1'); speedMultiplier = isNaN(s)?1:s; }
+  async function goToStep(i){
+    if(i<0)i=0; if(i>=steps.length)i=steps.length-1;
+    // cancel any pending auto advance to avoid overlap
+    clearTimeout(autoTimer);
+    stepIndex = i;
+    try{
+      // execute the step action (may be sync or async)
+      const act = steps[i].action();
+      if(act && typeof act.then === 'function') await act;
+    }catch(e){ console.error('step action error', e); }
+
+    // Decide whether this step should be spoken. Default: true; set autoSpeak:false on steps to silence.
+    const shouldSpeak = (typeof steps[i].autoSpeak === 'boolean') ? steps[i].autoSpeak : true;
+    // TTS and visual update
+    // Await speech to avoid overlapping narration; if TTS is disabled, this resolves immediately
+    try{ if(shouldSpeak) await speakText(steps[i].title + '. ' + steps[i].text); }catch(e){ /* ignore */ }
+    // Post current state to server for sync (best-effort)
+    try{ await postDemoState(i); }catch(e){}
+    // If autoplay is active, schedule next
+    if(autoplay) scheduleAutoNext();
+  }
+    
+    // Sync: POST current state to server (best-effort, silent failures)
+    async function postDemoState(stepIdx){
+      const payload = { step: stepIdx, title: steps[stepIdx].title, text: steps[stepIdx].text };
+      try{
+        await fetch('/demo/sync/state/update/', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify(payload)
+        });
+      }catch(e){ /* ignore errors - dev-only endpoint */ }
+    }
+
+    // Poll server for external state changes and apply if different
+    let lastServerStep = null;
+    async function pollServerState(){
+      try{
+  const res = await fetch('/demo/sync/state/');
+        const j = await res.json();
+        if(j && j.state){
+          const s = j.state;
+          if(typeof s.step === 'number' && s.step !== lastServerStep){
+            lastServerStep = s.step;
+            if(s.step >=0 && s.step < steps.length){
+              goToStep(s.step);
+            }
+          }
+        }
+      }catch(e){ /* ignore */ }
+      setTimeout(pollServerState, 2000);
+    }
+    // Start polling
+    pollServerState();
+    function nextStep(){ if(stepIndex<steps.length-1) goToStep(stepIndex+1); }
+    function prevStep(){ if(stepIndex>0) goToStep(stepIndex-1); }
+    function startPresentation(){ autoplay=true; goToStep(0); scheduleAutoNext(); }
+  function scheduleAutoNext(){
+    clearTimeout(autoTimer);
+    if(!autoplay) return;
+    updateSpeedFromControl();
+    // Base durations in seconds for each step (longer for explanation and animation)
+    // Increased some durations so narration and reading time are less likely to be cut.
+    const baseDurations = [12, 10, 18, 12, (animDurationOverride || baseDurationSeconds), 12, 10, 8];
+    const idx = Math.max(0, Math.min(steps.length-1, stepIndex));
+    const baseSec = baseDurations[idx] || 6;
+    // Convert to ms and adjust by speed multiplier (higher speed => shorter wait)
+    const waitMs = Math.max(800, Math.round((baseSec * 1000) / Math.max(0.25, speedMultiplier)));
+    autoTimer = setTimeout(()=>{
+      if(stepIndex < steps.length-1){ nextStep(); }
+      else autoplay = false;
+      if(autoplay) scheduleAutoNext();
+    }, waitMs);
+  }
+    function pausePresentation(){ autoplay=false; clearTimeout(autoTimer); document.getElementById('status').innerText='Pausado'; }
+    function resumePresentation(){ if(!autoplay){ autoplay=true; scheduleAutoNext(); document.getElementById('status').innerText='Reanudado'; } }
+    // speakText returns a Promise that resolves when speech ends (or immediately if TTS disabled)
+    // It adds a short pre-speak delay and a fallback timeout based on estimated spoken words
+    function speakText(text){
+      return new Promise((resolve)=>{
+        if(!ttsEnabled || !window.speechSynthesis){ resolve(); return; }
+        try{
+          // Expand abbreviations for clearer narration (ETA => ETA (tiempo estimado de llegada))
+          try{ text = String(text).replace(/\bETA\b/g, 'ETA (tiempo estimado de llegada)'); }catch(e){}
+          // cancel any pending utterances to avoid overlap
+          try{ speechSynthesis.cancel(); }catch(e){}
+          // small pre-speak pause so UI updates settle
+          const preSpeakMs = 250;
+          setTimeout(()=>{
+            try{
+              const ut = new SpeechSynthesisUtterance(text);
+              ut.lang='es-AR';
+              // optional: tune rate/pitch if desired
+              ut.rate = 1.0;
+              let resolved = false;
+              const cleanup = ()=>{
+                if(resolved) return; resolved = true;
+                try{ clearInterval(scrollInterval); }catch(e){}
+                try{ clearTimeout(fallback); }catch(e){}
+                resolve();
+              };
+              ut.onend = ()=>{ cleanup(); };
+              ut.onerror = ()=>{ cleanup(); };
+              // While speaking, auto-scroll details area so text remains visible
+              const scrollInterval = setInterval(()=>{
+                const d = document.getElementById('details');
+                if(d) d.scrollTop = d.scrollHeight;
+              }, 300);
+              // fallback: estimate speech duration from word count (150 wpm ~ 2.5 wps)
+              const words = (text || '').trim().split(/\s+/).filter(Boolean).length || 1;
+              const estSec = Math.max(1, Math.round((words / 2.5) + 0.5));
+              const fallback = setTimeout(()=>{ cleanup(); }, Math.min(120000, (estSec * 1000) + 1000));
+              speechSynthesis.speak(ut);
+            }catch(e){ resolve(); }
+          }, preSpeakMs);
+        }catch(e){ resolve(); }
+      });
+    }
+
+    document.getElementById('startBtn').addEventListener('click', ()=>{ startPresentation(); });
+    document.getElementById('forceCutBtn').addEventListener('click', ()=>{
+      // force a closure right away
+      closureTriggered = true;
+      closureTime = Date.now();
+      document.getElementById('details').innerText += '\n[Operador] Forzó un corte manual para la demo.';
+    });
+    document.getElementById('speedSelect').addEventListener('change', ()=>{ updateSpeedFromControl(); });
+    document.getElementById('pauseBtn').addEventListener('click', ()=>{ pausePresentation(); });
+    document.getElementById('resumeBtn').addEventListener('click', ()=>{ resumePresentation(); });
+    document.getElementById('nextBtn').addEventListener('click', ()=>{ nextStep(); });
+    document.getElementById('prevBtn').addEventListener('click', ()=>{ prevStep(); });
+    document.getElementById('resetBtn').addEventListener('click', ()=>{ location.reload(); });
+  document.getElementById('speakBtn').addEventListener('click', ()=>{ ttsEnabled = !ttsEnabled; document.getElementById('speakBtn').innerText = ttsEnabled ? 'Narración: ON' : 'Narración TTS'; });
+  // Set initial speak button label according to default TTS state
+  document.getElementById('speakBtn').innerText = ttsEnabled ? 'Narración: ON' : 'Narración TTS';
+    document.getElementById('fastAdvanceBtn').addEventListener('click', ()=>{
+      // Forzar avance rápido de la unidad (acelera animación al 4x durante el desplazamiento)
+      const prev = speedMultiplier;
+      speedMultiplier = Math.max(2, speedMultiplier * 4);
+      document.getElementById('status').innerText = 'Avance rápido: unidad acelerada';
+      setTimeout(()=>{ speedMultiplier = prev; document.getElementById('status').innerText = 'Velocidad normal restaurada'; }, 5000);
+    });
+
+  // Do not auto-start the presentation; wait for user to press 'Iniciar presentación'
+  document.getElementById('details').innerText = 'Presione "Iniciar presentación" para comenzar la demo. Use Pausa/Reanudar/Anterior/Siguiente para controlar la presentación.';
+
+  </script>
+{% endblock %}

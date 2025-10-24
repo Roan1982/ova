@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.utils import timezone
 from django.http import JsonResponse, Http404
+import json
 from django.core.serializers.json import DjangoJSONEncoder
 import math
 import requests
@@ -16,6 +17,7 @@ from .forms import EmergencyForm
 from .llm import classify_with_ai
 from .routing import calculate_emergency_routes, get_real_time_eta, get_route_optimizer
 from .news import get_latest_news, get_weather_status, get_incident_items
+from django.core.cache import cache
 
 # Importar sistema de onda verde
 import sys
@@ -862,6 +864,120 @@ def ai_status_view(request):
     }
     
     return render(request, 'core/ai_status.html', context)
+
+
+def demo_presentation(request):
+    """Dev-only: página que muestra la demo guiada de presentación."""
+    # Renderizar la plantilla que contiene el demo JS/autoplay
+    return render(request, 'core/demo_presentation.html', {})
+
+
+def demo_sync_state_get(request):
+    """GET: devuelve el estado sincronizado de la demo (paso actual, details)."""
+    state = cache.get('demo_sync_state') or {'step': 0, 'title': '', 'text': '', 'updated_at': None}
+    return JsonResponse({'success': True, 'state': state})
+
+
+def demo_sync_state_post(request):
+    """POST: aceptar JSON con estado {'step': int, 'title': str, 'text': str} y guardarlo en cache."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': f'Invalid JSON: {e}'}, status=400)
+
+    step = int(payload.get('step', 0))
+    title = payload.get('title', '')
+    text = payload.get('text', '')
+    state = {'step': step, 'title': title, 'text': text, 'updated_at': timezone.now().isoformat()}
+    # Guardar 5 minutos
+    cache.set('demo_sync_state', state, timeout=300)
+    return JsonResponse({'success': True, 'state': state})
+
+
+def demo_calculated_route_api(request):
+    """Dev-only API: devuelve un CalculatedRoute de ejemplo (mock) para la demo.
+
+    Uso: GET /core/demo/calculated_route/
+    """
+    # Try to return a real CalculatedRoute from DB (most recent active), otherwise return a
+    # denser mock LineString so frontend draws a street-like polyline.
+    try:
+        # Prefer an active CalculatedRoute, fallback to latest if none active
+        route_obj = None
+        try:
+            route_obj = CalculatedRoute.objects.filter(status__in=['activa', 'active']).order_by('-calculated_at').first()
+        except Exception:
+            route_obj = None
+
+        if route_obj and getattr(route_obj, 'route_geometry', None):
+            geom = route_obj.route_geometry
+            # If it's stored as a GeoJSON-like dict return directly
+            if isinstance(geom, dict) and geom.get('type') == 'LineString' and isinstance(geom.get('coordinates'), list):
+                return JsonResponse({'success': True, 'route': {
+                    'resource_id': getattr(route_obj, 'resource_id', 'vehicle_1'),
+                    'resource_type': getattr(route_obj, 'resource_type', 'Unidad'),
+                    'distance_km': getattr(route_obj, 'distance_km', None),
+                    'estimated_time_minutes': getattr(route_obj, 'estimated_time_minutes', None),
+                    'priority_score': getattr(route_obj, 'priority_score', None),
+                    'route_geometry': geom,
+                    'calculated_at': getattr(route_obj, 'calculated_at', timezone.now()).isoformat(),
+                    'status': getattr(route_obj, 'status', 'activa')
+                }}, encoder=DjangoJSONEncoder)
+    except Exception:
+        # swallow DB errors for dev endpoint and continue to mocked response
+        pass
+
+    # Fallback: create a denser, street-like mocked LineString by interpolating between several
+    # anchor points. This produces more vertices so Leaflet draws a path that visually follows
+    # streets instead of a straight coarse polyline.
+    anchors = [
+        [-58.3816, -34.6037],
+        [-58.3810, -34.6040],
+        [-58.3802, -34.6046],
+        [-58.3794, -34.6053],
+        [-58.3786, -34.6061],
+        [-58.3778, -34.6068],
+        [-58.3771, -34.6076],
+        [-58.3766, -34.6086],
+        [-58.3762, -34.6094],
+        [-58.3768, -34.6099]
+    ]
+
+    # densify by linear interpolation
+    coords = []
+    def interp(a, b, steps=8):
+        ax, ay = a
+        bx, by = b
+        out = []
+        for i in range(steps):
+            t = i / float(steps)
+            out.append([ax + (bx-ax)*t, ay + (by-ay)*t])
+        return out
+
+    for i in range(len(anchors)-1):
+        seg = interp(anchors[i], anchors[i+1], steps=12)
+        coords.extend(seg)
+    coords.append(anchors[-1])
+
+    sample = {
+        'success': True,
+        'route': {
+            'resource_id': 'vehicle_1',
+            'resource_type': 'Ambulancia - SAME',
+            'distance_km': 3.2,
+            'estimated_time_minutes': 7,
+            'priority_score': 10,
+            'route_geometry': {
+                'type': 'LineString',
+                'coordinates': coords
+            },
+            'calculated_at': timezone.now().isoformat(),
+            'status': 'activa'
+        }
+    }
+    return JsonResponse(sample, encoder=DjangoJSONEncoder)
 
 
 # Dashboard
@@ -1717,3 +1833,36 @@ def emergency_mobility_api(request, emergency_id):
         })
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+def watson_webhook(request):
+    """Endpoint sencillo para que Watson Connections / Orchestrate pueda llamar a la app.
+
+    Seguridad mínima: se espera que la llamada incluya el header `x-api-key` con la
+    misma WATSON_API_KEY configurada en `.env`. Devuelve 200 OK si la clave coincide.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+
+    expected = getattr(settings, 'WATSON_API_KEY', None)
+    provided = request.headers.get('x-api-key') or request.META.get('HTTP_X_API_KEY')
+
+    if not expected:
+        return JsonResponse({'success': False, 'error': 'WATSON_API_KEY not configured on server'}, status=500)
+
+    if not provided:
+        return JsonResponse({'success': False, 'error': 'Missing x-api-key header'}, status=401)
+
+    if provided.strip() != expected.strip():
+        return JsonResponse({'success': False, 'error': 'Invalid API key'}, status=403)
+
+    # Aquí podríamos procesar el payload que Watson envíe (por ejemplo, contenido del usuario)
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except Exception:
+        payload = None
+
+    # Registrar recepción mínima para auditoría
+    logger.info('Watson webhook recibido: headers ok, payload type=%s', type(payload).__name__)
+
+    return JsonResponse({'success': True, 'message': 'Webhook accepted', 'received': bool(payload)})

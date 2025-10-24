@@ -143,7 +143,18 @@ OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
 OPENAI_API_BASE = os.environ.get('OPENAI_API_BASE', 'https://api.openai.com/v1')
 
-# Servicios de ruteo externos
+# Watson Orchestrate
+WATSON_API_KEY = os.environ.get('WATSON_API_KEY')
+WATSON_INSTANCE_URL = os.environ.get(
+    'WATSON_INSTANCE_URL',
+    'https://api.dl.watson-orchestrate.ibm.com/instances/28251824-1653-4080-8097-8efa6c69fba8'
+)
+# Endpoint IAM para intercambio de API key por token (platform.saas para oferta AWS, o iam.cloud.ibm.com clásico)
+WATSON_IAM_URL = os.environ.get('WATSON_IAM_URL', 'https://iam.cloud.ibm.com/identity/token')
+
+# Ollama (local, opcional)
+OLLAMA_BASE_URL = os.environ.get('OLLAMA_BASE_URL')
+OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'gemma:4b')
 OPENROUTE_API_KEY = os.environ.get('OPENROUTE_API_KEY')
 MAPBOX_API_KEY = os.environ.get('MAPBOX_API_KEY')
 ROUTING_MAX_RESULTS = int(os.environ.get('ROUTING_MAX_RESULTS', '6'))
@@ -152,6 +163,11 @@ ROUTING_AGENT_CANDIDATES = int(os.environ.get('ROUTING_AGENT_CANDIDATES', '4'))
 ROUTING_CACHE_SIZE = int(os.environ.get('ROUTING_CACHE_SIZE', '128'))
 OPENROUTE_BACKOFF_SECONDS = int(os.environ.get('OPENROUTE_BACKOFF_SECONDS', '120'))
 
-# Compatibilidad hacia atrás (Ollama opcional)
-OLLAMA_BASE_URL = os.environ.get('OLLAMA_BASE_URL')
-OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'gemma:4b')
+# Servicios de ruteo externos
+OPENROUTE_API_KEY = os.environ.get('OPENROUTE_API_KEY')
+MAPBOX_API_KEY = os.environ.get('MAPBOX_API_KEY')
+ROUTING_MAX_RESULTS = int(os.environ.get('ROUTING_MAX_RESULTS', '6'))
+ROUTING_VEHICLE_CANDIDATES = int(os.environ.get('ROUTING_VEHICLE_CANDIDATES', '6'))
+ROUTING_AGENT_CANDIDATES = int(os.environ.get('ROUTING_AGENT_CANDIDATES', '4'))
+ROUTING_CACHE_SIZE = int(os.environ.get('ROUTING_CACHE_SIZE', '128'))
+OPENROUTE_BACKOFF_SECONDS = int(os.environ.get('OPENROUTE_BACKOFF_SECONDS', '120'))

@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Demo Presentación - Sistema de Emergencias (OVA)</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    body { font-family: Arial, sans-serif; margin:0; padding:0; }
+    #map { height: 70vh; }
+    #panel { padding: 12px; }
+    .card { border: 1px solid #ddd; padding: 12px; margin-bottom: 12px; border-radius: 6px; }
+    .btn { background:#0078d4;color:white;padding:8px 12px;border-radius:4px;border:none;cursor:pointer }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="panel">
+    <div class="card">
+      <h3>Demo de uso</h3>
+      <p>Demo guiada automática: la presentación explica paso a paso la creación de una emergencia, la clasificación, la activación de la "onda verde" para priorizar el tránsito, la optimización de ruta y la llegada. Está en español y puede ejecutarse sin backend.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button id="startBtn" class="btn">Iniciar presentación</button>
+        <button id="pauseBtn" class="btn" style="background:#f0ad4e;">Pausa</button>
+        <button id="resumeBtn" class="btn" style="background:#28a745;">Reanudar</button>
+        <button id="prevBtn" class="btn" style="background:#6c757d;">Anterior</button>
+        <button id="nextBtn" class="btn" style="background:#6c757d;">Siguiente</button>
+        <button id="resetBtn" class="btn" style="background:#666;">Reiniciar</button>
+        <button id="speakBtn" class="btn" style="background:#0056b3">Narración TTS</button>
+      </div>
+    </div>
+    <div id="info" class="card">
+      <h4>Estado</h4>
+      <div id="status">Inactivo</div>
+      <h4>Detalles</h4>
+      <pre id="details" style="white-space:pre-wrap"></pre>
+    </div>
+    <div class="card">
+      <h4>Instrucciones rápidas</h4>
+      <ol>
+        <li>Abrí este archivo en un navegador moderno (Chromium/Firefox).</li>
+        <li>Presioná <b>Iniciar presentación</b> para empezar el recorrido automatizado.</li>
+        <li>Usá Pausa/Reanudar/Anterior/Siguiente para controlar la presentación.</li>
+        <li>La demo es offline; para usar datos reales se puede crear un endpoint JSON en Django y cargarlo dinámicamente.</li>
+      </ol>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // Mapa
+    const map = L.map('map').setView([-34.6037, -58.3816], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+  // Ejemplo de geometría (LineString) - coordenadas (lon, lat) convertidas
+    const geo = {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-58.3816, -34.6037],
+          [-58.3790, -34.6050],
+          [-58.3770, -34.6100]
+        ]
+      },
+      "properties": {}
+    };
+
+    // Mostrar ruta
+    const coords = geo.geometry.coordinates.map(c => [c[1], c[0]]);
+    const poly = L.polyline(coords, {color: 'red', weight:4}).addTo(map);
+    map.fitBounds(poly.getBounds(), {padding:[50,50]});
+
+    // Marcadores inicio/fin
+    const startMarker = L.circleMarker(coords[0], {radius:6, color:'green'}).addTo(map).bindPopup('Origen');
+    const endMarker = L.circleMarker(coords[coords.length-1], {radius:6, color:'red'}).addTo(map).bindPopup('Destino');
+
+    // Simular ETA (duration segs) y animación simple
+    const durationSeconds = 6 * 60; // 6 minutos
+    let animMarker = L.circleMarker(coords[0], {radius:7, color:'#0078d4', fillOpacity:1}).addTo(map);
+
+    // --- Presentación guiada: pasos y control ---
+    const steps = [
+      {
+        id: 'intro',
+        title: 'Introducción',
+        text: 'Bienvenidos. Esta demo muestra cómo el sistema gestiona una emergencia: clasificación, asignación y optimización de la ruta. Presione iniciar para ver la presentación automática.',
+        action: () => {
+          document.getElementById('status').innerText = 'Introducción';
+          document.getElementById('details').innerText = steps[0].text;
+        }
+      },
+      {
+        id: 'create',
+        title: 'Creación de emergencia',
+        text: 'Se crea una emergencia en la ubicación final. El sistema registra la incidencia y la envía al módulo de clasificación (IA).',
+        action: () => {
+          document.getElementById('status').innerText = 'Emergencia creada';
+          document.getElementById('details').innerText = steps[1].text + '\n\nArchivo relacionado: core/models.py';
+          L.circle(coords[coords.length-1], {radius:40, color:'#990000', fillOpacity:0.15}).addTo(map).bindPopup('Emergencia: destino');
+        }
+      },
+      {
+        id: 'classify',
+        title: 'Clasificación (Rojo)',
+        text: 'La IA clasifica la emergencia como \"Rojo\" (alta prioridad). Históricamente los LLM podían devolver texto no estructurado; la solución fue forzar un esquema JSON y normalizar (ver core/llm.py y core/ai.py).',
+        action: () => {
+          document.getElementById('status').innerText = 'Clasificación: ROJO';
+          document.getElementById('details').innerText = steps[2].text + '\n\nSolución: prompt JSON + fallback local.';
+          // destacar origen -> destino
+          poly.setStyle({color:'#ff0000', weight:5});
+        }
+      },
+      {
+        id: 'greenwave',
+        title: 'Activación: Onda Verde',
+        text: 'Para priorizar la respuesta, se solicita la Onda Verde: segmentos semafóricos se priorizan para generar flujo preferencial y reducir ETA. Aquí lo simulamos pintando segmentos en verde y reduciendo ETA.',
+        action: () => {
+          document.getElementById('status').innerText = 'Onda Verde activada';
+          document.getElementById('details').innerText = steps[3].text + '\n\nArchivo relacionado: core/routing.py';
+          // simular onda verde: agregar overlay verde parcial
+          const segCount = coords.length - 1;
+          for (let i=0;i<segCount;i++){
+            const segment = L.polyline([coords[i], coords[i+1]], {color:'lime', weight:6, opacity:0.9});
+            segment.addTo(map);
+            // animar fade out
+            (function(s){ setTimeout(()=>{ s.setStyle({opacity:0.5}); }, 2000 + i*300); })(segment);
+          }
+          // ajustar ETA visualmente (reducir 30%)
+          const newDuration = Math.round(durationSeconds * 0.7);
+          document.getElementById('details').innerText += `\n\nETA ajustado: ~${Math.round(newDuration/60)} min (simulado)`;
+          // update global used by animation
+          animDurationOverride = newDuration;
+        }
+      },
+      {
+        id: 'route',
+        title: 'Optimización de ruta',
+        text: 'Se consulta el RouteOptimizer que intenta varios proveedores (Mapbox, OpenRouteService, OSRM...) y aplica cierres y tráfico. Si un proveedor falla, se intenta el siguiente; si todos fallan, uso de grid fallback.',
+        action: () => {
+          document.getElementById('status').innerText = 'Optimizando ruta';
+          document.getElementById('details').innerText = steps[4].text + '\n\nArchivo relacionado: core/routing.py';
+        }
+      },
+      {
+        id: 'dispatch',
+        title: 'Asignación y desplazamiento',
+        text: 'Se asigna la unidad disponible más próxima. Se crea un CalculatedRoute y se persiste para trazabilidad. Aquí arrancamos la animación de la unidad en ruta.',
+        action: () => {
+          document.getElementById('status').innerText = 'Unidad en desplazamiento';
+          document.getElementById('details').innerText = steps[5].text + '\n\nArchivo relacionado: core/models.py, core/routing.py';
+          // iniciar animación usando animDurationOverride
+          animateRoute(animDurationOverride || durationSeconds);
+        }
+      },
+      {
+        id: 'arrival',
+        title: 'Llegada',
+        text: 'La unidad llega al lugar. Se registra tiempo de respuesta real y se compara con ETA para mejoras futuras. Se pueden analizar métricas: error de ETA, precisión de clasificación, cobertura de tests.',
+        action: () => {
+          document.getElementById('status').innerText = 'Llegada: en escena';
+          document.getElementById('details').innerText = steps[6].text + '\n\nSugerencia: medir ETA error y clasificación (ver TODO en DOCUMENTACION_TECNICA.md)';
+        }
+      },
+      {
+        id: 'issues',
+        title: 'Problemas y soluciones',
+        text: 'Problemas comunes: 1) LLM devuelve texto no JSON, 2) Proveedor de rutas caído, 3) Datos de transporte desactualizados. Soluciones: esquema JSON en prompt + sanitización, multi-proveedor con backoff, ingesta periódica de datos (core/transport_client.py).',
+        action: () => {
+          document.getElementById('status').innerText = 'Resumen: problemas y soluciones';
+          document.getElementById('details').innerText = steps[7].text + '\n\nReferencias: core/llm.py, core/ai.py, core/routing.py, core/transport_client.py';
+        }
+      },
+      {
+        id: 'conclusion',
+        title: 'Cierre',
+        text: 'Fin de la presentación. Recomendaciones: añadir pruebas que simulen caídas de proveedores, exponer endpoint JSON para demo en vivo y monitorear métricas clave.',
+        action: () => {
+          document.getElementById('status').innerText = 'Fin de la demo';
+          document.getElementById('details').innerText = steps[8].text;
+        }
+      }
+    ];
+
+    let stepIndex = 0;
+    let autoplay = false;
+    let animDurationOverride = null;
+    let autoTimer = null;
+
+    function goToStep(i){
+      if (i < 0) i = 0; if (i >= steps.length) i = steps.length-1;
+      stepIndex = i;
+      const s = steps[i];
+      if (s && s.action) s.action();
+      speakText(s.title + '. ' + s.text);
+    }
+
+    function nextStep(){
+      if (stepIndex < steps.length-1) goToStep(stepIndex+1);
+    }
+    function prevStep(){ if (stepIndex > 0) goToStep(stepIndex-1); }
+
+    function startPresentation(){
+      autoplay = true;
+      goToStep(0);
+      scheduleAutoNext();
+    }
+
+    function scheduleAutoNext(){
+      clearTimeout(autoTimer);
+      if (!autoplay) return;
+      // durations: intro 5s, create 4s, classify 5s, greenwave 6s, route 4s, dispatch (animation length), arrival 4s, issues 6s, conclusion 5s
+      const durations = [5000,4000,5000,6000,4000, (animDurationOverride||durationSeconds)*1000 + 500,4000,6000,5000];
+      const wait = durations[stepIndex] || 4000;
+      autoTimer = setTimeout(()=>{
+        if (stepIndex < steps.length-1) { nextStep(); scheduleAutoNext(); }
+        else autoplay = false;
+      }, wait);
+    }
+
+    function pausePresentation(){ autoplay = false; clearTimeout(autoTimer); document.getElementById('status').innerText = 'Pausado'; }
+    function resumePresentation(){ if (!autoplay){ autoplay = true; scheduleAutoNext(); document.getElementById('status').innerText = 'Reanudado'; } }
+
+    // Text-to-speech (opcional)
+    let ttsEnabled = false;
+    function speakText(text){ if (!ttsEnabled) return; try{ const ut = new SpeechSynthesisUtterance(text); ut.lang='es-AR'; speechSynthesis.cancel(); speechSynthesis.speak(ut);}catch(e){} }
+
+    // Controls
+    document.getElementById('startBtn').addEventListener('click', ()=>{ startPresentation(); });
+    document.getElementById('pauseBtn').addEventListener('click', ()=>{ pausePresentation(); });
+    document.getElementById('resumeBtn').addEventListener('click', ()=>{ resumePresentation(); });
+    document.getElementById('nextBtn').addEventListener('click', ()=>{ nextStep(); });
+    document.getElementById('prevBtn').addEventListener('click', ()=>{ prevStep(); });
+    document.getElementById('resetBtn').addEventListener('click', ()=>{ location.reload(); });
+    document.getElementById('speakBtn').addEventListener('click', ()=>{ ttsEnabled = !ttsEnabled; document.getElementById('speakBtn').innerText = ttsEnabled ? 'Narración: ON' : 'Narración TTS'; });
+
+    // start with initial presentation state
+    goToStep(0);
+
+    function animateRoute(durationSec) {
+      const start = Date.now();
+      const total = durationSec * 1000;
+
+      function step() {
+        const now = Date.now();
+        const t = Math.min(1, (now - start) / total);
+        // interpolation along coords
+        const point = interpolateCoords(coords, t);
+        animMarker.setLatLng(point);
+        document.getElementById('status').innerText = 'En ruta — ETA: ' + Math.max(0, Math.round((1-t) * durationSec/60)) + ' min';
+        document.getElementById('details').innerText = `Progreso: ${(t*100).toFixed(1)}%\nProveedor: DemoFallback\nOnda verde: Activada\nTiempo estimado inicial: ${Math.round(durationSec/60)} min`;
+        if (t < 1) requestAnimationFrame(step);
+        else document.getElementById('status').innerText = 'En escena — llegada';
+      }
+      requestAnimationFrame(step);
+    }
+
+    function interpolateCoords(pts, t) {
+      // t in [0,1]; simple piecewise linear interpolation by length
+      const lengths = [];
+      let total = 0;
+      for (let i=0;i<pts.length-1;i++){
+        const a = pts[i], b = pts[i+1];
+        const d = map.distance(a,b);
+        lengths.push(d); total += d;
+      }
+      let dist = t * total;
+      for (let i=0;i<lengths.length;i++){
+        if (dist <= lengths[i]){
+          const a = pts[i], b = pts[i+1];
+          const r = dist/lengths[i];
+          return [ a[0] + (b[0]-a[0])*r, a[1] + (b[1]-a[1])*r ];
+        }
+        dist -= lengths[i];
+      }
+      return pts[pts.length-1];
+    }
+
+    document.getElementById('startBtn').addEventListener('click', ()=>{
+      document.getElementById('status').innerText = 'Asignando recurso...';
+      document.getElementById('details').innerText = 'Clasificación: Rojo (demo)\nAsignando Bomberos - 2 unidades';
+      // Simular retardo y luego animar
+      setTimeout(()=>{
+        document.getElementById('status').innerText = 'Desplazamiento iniciado';
+        animateRoute(durationSeconds);
+      }, 1200);
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', ()=>{
+      animMarker.setLatLng(coords[0]);
+      document.getElementById('status').innerText = 'Inactivo';
+      document.getElementById('details').innerText = '';
+    });
+
+  </script>
+</body>
+</html>

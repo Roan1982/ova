@@ -9,6 +9,7 @@ import time
 import copy
 from collections import OrderedDict
 from django.conf import settings
+import os
 from typing import List, Dict, Tuple, Optional
 import logging
 from django.utils import timezone
@@ -39,6 +40,19 @@ class RouteOptimizer:
         self._route_cache: OrderedDict[str, Dict] = OrderedDict()
         self._route_cache_size = getattr(settings, 'ROUTING_CACHE_SIZE', 128)
         self._openroute_rate_limited_until = 0.0
+        # modo offline: evita llamadas externas (útil para populate / tests sin API keys)
+        setting_offline = bool(getattr(settings, 'ROUTING_OFFLINE', False)) or bool(getattr(settings, 'FORCE_ROUTING_OFFLINE', False))
+        # Leer variable de entorno como respaldo (permitir que run_system.bat active el modo offline)
+        env_val = os.environ.get('ROUTING_OFFLINE') or os.environ.get('FORCE_ROUTING_OFFLINE')
+        env_offline = False
+        if isinstance(env_val, str) and env_val.strip() != '':
+            env_offline = env_val.strip().lower() in ('1', 'true', 'yes', 'on')
+        elif isinstance(env_val, (int, bool)):
+            env_offline = bool(env_val)
+
+        self.offline_mode = setting_offline or env_offline
+        if self.offline_mode:
+            logger.info("ROUTING_OFFLINE habilitado (setting or env) — llamadas a proveedores externos evitadas")
 
     def get_active_street_closures(self) -> List[Dict]:
         """
@@ -426,8 +440,15 @@ class RouteOptimizer:
         """
         Obtiene ruta usando OpenRouteService API
         """
+        # Si estamos en modo offline no llamamos a la API
+        if self.offline_mode:
+            logger.info("ROUTING_OFFLINE activo: evitando llamada a OpenRouteService")
+            return None
+
         if not self.openroute_key:
-            logger.warning("OpenRoute API key no configurada")
+            # No advertir si estamos en modo offline: es esperado no tener keys
+            if not getattr(self, 'offline_mode', False):
+                logger.warning("OpenRoute API key no configurada")
             return None
 
         now_ts = time.time()
@@ -471,6 +492,10 @@ class RouteOptimizer:
         """
         Obtiene ruta usando Mapbox Directions API
         """
+        if self.offline_mode:
+            logger.info("ROUTING_OFFLINE activo: evitando llamada a Mapbox")
+            return None
+
         if not self.mapbox_key:
             logger.warning("Mapbox API key no configurada")
             return None
@@ -517,6 +542,11 @@ class RouteOptimizer:
             'geometries': 'geojson',
             'steps': 'true'
         }
+        # Si estamos en modo offline, no intentamos hosts externos
+        if self.offline_mode:
+            logger.info("ROUTING_OFFLINE activo: evitando llamadas a hosts OSRM públicos")
+            return None
+
         for base in hosts:
             url = f"{base}/{start_lon},{start_lat};{end_lon},{end_lat}"
             try:
@@ -540,6 +570,10 @@ class RouteOptimizer:
 
     def get_route_graphhopper(self, start_coords: Tuple[float,float], end_coords: Tuple[float,float]) -> Optional[Dict]:
         """Obtiene ruta usando GraphHopper (si hay API key) con geometría GeoJSON (points_encoded=false)."""
+        if self.offline_mode:
+            logger.info("ROUTING_OFFLINE activo: evitando llamada a GraphHopper")
+            return None
+
         if not self.graphhopper_key:
             return None
         url = "https://graphhopper.com/api/1/route"

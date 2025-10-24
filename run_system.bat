@@ -2,6 +2,9 @@
 echo Creando entorno virtual...
 python -m venv venv
 
+echo Activando modo offline para toda la ejecución (evita llamadas externas y solicitudes de API keys)
+set ROUTING_OFFLINE=1
+
 echo Cambiando al directorio del proyecto...
 cd emergency_system
 

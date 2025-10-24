@@ -5,7 +5,9 @@ from .views import (
     agentes_list, unidades_por_fuerza, hospitales_list, facilities_list, dashboard,
     ai_status_view, calculate_routes_api, assign_optimal_resources, real_time_tracking,
     activate_green_wave_api, traffic_status_api, redistribute_resources_api,
-    route_details_api, news_api, weather_api, incidents_api, stored_routes_api, emergency_mobility_api
+    route_details_api, news_api, weather_api, incidents_api, stored_routes_api, emergency_mobility_api,
+    demo_presentation, demo_calculated_route_api,
+    demo_sync_state_get, demo_sync_state_post, watson_webhook
 )
 
 urlpatterns = [
@@ -22,6 +24,12 @@ urlpatterns = [
     path('instalaciones/', facilities_list, name='facilities_list'),
     path('dashboard/', dashboard, name='dashboard'),
     path('ai-status/', ai_status_view, name='ai_status'),
+    # Demo / presentación (dev-only)
+    path('demo/presentation/', demo_presentation, name='demo_presentation'),
+    path('api/demo/calculated_route/', demo_calculated_route_api, name='demo_calculated_route_api'),
+    # Demo sync endpoints (dev-only)
+    path('demo/sync/state/', demo_sync_state_get, name='demo_sync_state_get'),
+    path('demo/sync/state/update/', demo_sync_state_post, name='demo_sync_state_post'),
     
     # APIs de ruteo
     path('api/routes/<int:emergency_id>/', calculate_routes_api, name='calculate_routes_api'),
@@ -39,4 +47,6 @@ urlpatterns = [
     path('api/stored-routes/<int:emergency_id>/', stored_routes_api, name='stored_routes_api'),
     path('api/incidents/', incidents_api, name='incidents_api'),
     path('api/mobility/<int:emergency_id>/', emergency_mobility_api, name='emergency_mobility_api'),
+    # Endpoint para que Watson Orchestrate / Connections llame a la app (verificar x-api-key)
+    path('api/watson/webhook/', watson_webhook, name='watson_webhook'),
 ]
