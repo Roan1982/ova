@@ -69,20 +69,26 @@
     <div class="config-grid">
       <div class="config-item">
         <strong>Proveedor configurado:</strong><br>
-        <code>{{ settings_config.AI_PROVIDER|upper }}</code>
+        <code style="color: var(--info); font-weight: bold;">{{ settings_config.AI_PROVIDER|upper }}</code>
       </div>
       <div class="config-item">
         <strong>Modelo en uso:</strong><br>
-        <code>{{ settings_config.OPENAI_MODEL }}</code>
+        <code>{{ settings_config.MODEL }}</code>
       </div>
       <div class="config-item">
         <strong>Endpoint API:</strong><br>
-        <code>{{ settings_config.OPENAI_API_BASE }}</code>
+        <code style="font-size: 11px; word-break: break-all;">{{ settings_config.API_BASE }}</code>
       </div>
       <div class="config-item">
         <strong>API Key cargada:</strong><br>
-        <code>{% if settings_config.OPENAI_API_KEY_CONFIGURADO %}✅ Sí{% else %}⚠️ No{% endif %}</code>
+        <code>{% if settings_config.API_KEY_CONFIGURADO %}✅ Sí{% else %}⚠️ No{% endif %}</code>
       </div>
+      {% if settings_config.IAM_URL != 'N/A' and settings_config.IAM_URL != 'N/A (local)' %}
+      <div class="config-item">
+        <strong>Endpoint IAM:</strong><br>
+        <code style="font-size: 10px; word-break: break-all;">{{ settings_config.IAM_URL }}</code>
+      </div>
+      {% endif %}
     </div>
   </div>
 
@@ -140,8 +146,18 @@
       <div>
         <h4>🔄 Funcionamiento</h4>
         <ul style="color: var(--text-secondary); margin: 0; padding-left: 20px;">
-          <li>Intento primario: {{ status.provider|upper }}</li>
-          <li>Respaldo automático: IA local basada en reglas</li>
+          <li>Intento primario: <strong style="color: var(--info);">{{ status.provider|upper }}</strong></li>
+          <li>Fallback chain: 
+            {% if status.provider == 'watson' %}
+              Watson → OpenAI → Ollama → Local
+            {% elif status.provider == 'openai' %}
+              OpenAI → Ollama → Local
+            {% elif status.provider == 'ollama' %}
+              Ollama → Local
+            {% else %}
+              Local (reglas)
+            {% endif %}
+          </li>
           <li>Tolerancia a fallos garantizada</li>
           <li>Clasificación en tiempo real</li>
           <li>Actualización automática de prioridades</li>

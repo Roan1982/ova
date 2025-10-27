@@ -850,17 +850,40 @@ def ai_status_view(request):
     except Exception as e:
         test_error = str(e)
     
+    # Determinar configuración según el proveedor activo
+    provider = getattr(settings, 'AI_PROVIDER', 'openai')
+    
+    if provider == 'watson':
+        config = {
+            'AI_PROVIDER': provider,
+            'MODEL': getattr(settings, 'WATSON_MODEL', 'Watson Orchestrate Agent'),
+            'API_BASE': getattr(settings, 'WATSON_INSTANCE_URL', 'No configurado'),
+            'IAM_URL': getattr(settings, 'WATSON_IAM_URL', 'https://iam.platform.saas.ibm.com/siusermgr/api/1.0/apikeys/token'),
+            'API_KEY_CONFIGURADO': bool(getattr(settings, 'WATSON_API_KEY', None)),
+        }
+    elif provider == 'ollama':
+        config = {
+            'AI_PROVIDER': provider,
+            'MODEL': getattr(settings, 'OLLAMA_MODEL', 'No configurado'),
+            'API_BASE': getattr(settings, 'OLLAMA_BASE_URL', 'http://localhost:11434'),
+            'IAM_URL': 'N/A (local)',
+            'API_KEY_CONFIGURADO': True,  # Ollama no requiere key
+        }
+    else:  # openai por defecto
+        config = {
+            'AI_PROVIDER': provider,
+            'MODEL': getattr(settings, 'OPENAI_MODEL', 'No configurado'),
+            'API_BASE': getattr(settings, 'OPENAI_API_BASE', 'https://api.openai.com/v1'),
+            'IAM_URL': 'N/A',
+            'API_KEY_CONFIGURADO': bool(getattr(settings, 'OPENAI_API_KEY', None)),
+        }
+    
     context = {
         'status': status,
         'test_description': test_description,
         'test_result': test_result,
         'test_error': test_error,
-        'settings_config': {
-            'AI_PROVIDER': getattr(settings, 'AI_PROVIDER', 'openai'),
-            'OPENAI_MODEL': getattr(settings, 'OPENAI_MODEL', 'No configurado'),
-            'OPENAI_API_BASE': getattr(settings, 'OPENAI_API_BASE', 'https://api.openai.com/v1'),
-            'OPENAI_API_KEY_CONFIGURADO': bool(getattr(settings, 'OPENAI_API_KEY', None)),
-        }
+        'settings_config': config,
     }
     
     return render(request, 'core/ai_status.html', context)
