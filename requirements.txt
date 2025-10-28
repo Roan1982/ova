@@ -1,6 +1,6 @@
 Django==5.2.5
 requests
-openai==1.109.1
+psycopg2-binary
 python-dotenv==1.1.1
 feedparser
 gunicorn
