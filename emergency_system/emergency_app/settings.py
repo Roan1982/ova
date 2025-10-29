@@ -84,26 +84,46 @@ WSGI_APPLICATION = 'emergency_app.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+# Configuración de base de datos con soporte para DATABASE_URL (Render/Heroku)
+import dj_database_url
 
-#DATABASES = {
-#    'default': {
-#        'ENGINE': 'django.db.backends.sqlite3',
-#        'NAME': BASE_DIR / 'db.sqlite3',
-#    }
-#}
+# Si DATABASE_URL está presente (producción en Render), usarla
+# Si no, usar configuración manual o SQLite local
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'ova',  # Nombre de la base
-        'USER': 'ova_user',  # Usuario
-        'PASSWORD': os.environ.get('DB_PASSWORD'),
-        'HOST': 'dpg-d40kcrur433s738fcmr0-a',
-        'PORT': '5432',
+if DATABASE_URL:
+    # Render proporciona DATABASE_URL automáticamente
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
     }
-}
+else:
+    # Desarrollo local: intentar PostgreSQL si está configurado, sino SQLite
+    DB_PASSWORD = os.environ.get('DB_PASSWORD')
+    
+    if DB_PASSWORD:
+        # PostgreSQL local
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': os.environ.get('DB_NAME', 'ova'),
+                'USER': os.environ.get('DB_USER', 'ova_user'),
+                'PASSWORD': DB_PASSWORD,
+                'HOST': os.environ.get('DB_HOST', 'dpg-d40kcrur433s738fcmr0-a'),
+                'PORT': os.environ.get('DB_PORT', '5432'),
+            }
+        }
+    else:
+        # SQLite local (desarrollo sin PostgreSQL)
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db.sqlite3',
+            }
+        }
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators

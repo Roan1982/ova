@@ -5,3 +5,4 @@ whitenoise
 python-dotenv==1.1.1
 feedparser
 gunicorn
+dj-database-url
