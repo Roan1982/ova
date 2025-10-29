@@ -264,13 +264,15 @@ class RouteOptimizer:
             lat, lon = point
 
             # Buscar conteos de tránsito cercanos (dentro de 200m)
+            # En PostgreSQL, no podemos usar la columna calculada en WHERE, así que calculamos distancia completa en WHERE
             nearby_counts = TrafficCount.objects.filter(
                 timestamp__gte=time_window_start,
                 timestamp__lte=query_time
             ).extra(
                 select={'distance': '6371000 * 2 * ASIN(SQRT(POWER(SIN((%s - lat) * PI() / 360), 2) + COS(%s * PI() / 180) * COS(lat * PI() / 180) * POWER(SIN((%s - lon) * PI() / 360), 2)))'},
                 select_params=[lat, lat, lon],
-                where=['distance <= 200']
+                where=['6371000 * 2 * ASIN(SQRT(POWER(SIN((%s - lat) * PI() / 360), 2) + COS(%s * PI() / 180) * COS(lat * PI() / 180) * POWER(SIN((%s - lon) * PI() / 360), 2))) <= 200'],
+                params=[lat, lat, lon]
             ).order_by('distance', '-timestamp')[:5]  # Top 5 más cercanos y recientes
 
             if nearby_counts:
