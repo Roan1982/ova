@@ -7,7 +7,7 @@ from .views import (
     activate_green_wave_api, traffic_status_api, redistribute_resources_api,
     route_details_api, news_api, weather_api, incidents_api, stored_routes_api, emergency_mobility_api,
     demo_presentation, demo_calculated_route_api,
-    demo_sync_state_get, demo_sync_state_post, watson_webhook, populate_database_view
+    demo_sync_state_get, demo_sync_state_post, watson_webhook, populate_database_view, database_info_view
 )
 
 urlpatterns = [
@@ -51,4 +51,5 @@ urlpatterns = [
     path('api/watson/webhook/', watson_webhook, name='watson_webhook'),
     # Admin tools
     path('admin-tools/populate/', populate_database_view, name='populate_database'),
+    path('admin-tools/database-info/', database_info_view, name='database_info'),
 ]

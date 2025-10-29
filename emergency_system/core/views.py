@@ -1948,3 +1948,58 @@ def populate_database_view(request):
     
     # GET: mostrar página simple con botón
     return render(request, 'core/populate_data.html')
+
+
+def database_info_view(request):
+    """Vista para mostrar información de la base de datos en uso"""
+    from django.conf import settings
+    from django.db import connection
+    
+    db_config = settings.DATABASES['default']
+    
+    # Obtener información de la conexión actual
+    db_info = {
+        'ENGINE': db_config['ENGINE'],
+        'NAME': db_config.get('NAME', 'N/A'),
+        'USER': db_config.get('USER', 'N/A'),
+        'HOST': db_config.get('HOST', 'N/A'),
+        'PORT': db_config.get('PORT', 'N/A'),
+    }
+    
+    # Determinar tipo de base de datos
+    if 'postgresql' in db_config['ENGINE']:
+        db_type = 'PostgreSQL'
+        db_emoji = '🐘'
+    elif 'sqlite' in db_config['ENGINE']:
+        db_type = 'SQLite'
+        db_emoji = '📄'
+    elif 'mysql' in db_config['ENGINE']:
+        db_type = 'MySQL'
+        db_emoji = '🐬'
+    else:
+        db_type = 'Otro'
+        db_emoji = '💾'
+    
+    # Contar registros de las tablas principales
+    try:
+        from .models import Emergency, Hospital, Force, Vehicle, Agent, Facility
+        counts = {
+            'emergencies': Emergency.objects.count(),
+            'hospitals': Hospital.objects.count(),
+            'forces': Force.objects.count(),
+            'vehicles': Vehicle.objects.count(),
+            'agents': Agent.objects.count(),
+            'facilities': Facility.objects.count(),
+        }
+    except Exception as e:
+        counts = {'error': str(e)}
+    
+    context = {
+        'db_type': db_type,
+        'db_emoji': db_emoji,
+        'db_info': db_info,
+        'counts': counts,
+        'env_database_url': bool(os.environ.get('DATABASE_URL')),
+    }
+    
+    return render(request, 'core/database_info.html', context)

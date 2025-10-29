@@ -1,0 +1,143 @@
+{% extends 'core/base.html' %}
+{% block title %}Información de Base de Datos{% endblock %}
+
+{% block extra_styles %}
+<style>
+:root {
+  --success: #22c55e;
+  --info: #3b82f6;
+  --bg-card: #1f2937;
+  --text-primary: #f9fafb;
+  --text-secondary: #d1d5db;
+}
+.info-card {
+  background: var(--bg-card);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  border-left: 4px solid var(--info);
+}
+.db-type {
+  font-size: 3em;
+  text-align: center;
+  margin: 20px 0;
+}
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 15px;
+  margin-top: 20px;
+}
+.config-item {
+  background: rgba(59, 130, 246, 0.1);
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+.count-item {
+  background: rgba(34, 197, 94, 0.1);
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  text-align: center;
+}
+.count-number {
+  font-size: 2em;
+  font-weight: bold;
+  color: var(--success);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="max-width: 1200px; margin: 0 auto;">
+  <h1>💾 Información de Base de Datos</h1>
+
+  <!-- Tipo de Base de Datos -->
+  <div class="info-card">
+    <div class="db-type">
+      {{ db_emoji }} {{ db_type }}
+    </div>
+    <p style="text-align: center; color: var(--text-secondary);">
+      {% if db_type == 'PostgreSQL' %}
+        ✅ Usando base de datos PostgreSQL en producción (persistente)
+      {% elif db_type == 'SQLite' %}
+        ⚠️ Usando base de datos SQLite (desarrollo local, no persistente en Render)
+      {% else %}
+        Usando {{ db_type }}
+      {% endif %}
+    </p>
+  </div>
+
+  <!-- Configuración -->
+  <div class="info-card">
+    <h2>⚙️ Configuración de Conexión</h2>
+    <div class="config-grid">
+      <div class="config-item">
+        <strong>Engine:</strong><br>
+        <code>{{ db_info.ENGINE }}</code>
+      </div>
+      <div class="config-item">
+        <strong>Database Name:</strong><br>
+        <code>{{ db_info.NAME }}</code>
+      </div>
+      <div class="config-item">
+        <strong>User:</strong><br>
+        <code>{{ db_info.USER }}</code>
+      </div>
+      <div class="config-item">
+        <strong>Host:</strong><br>
+        <code>{{ db_info.HOST }}</code>
+      </div>
+      <div class="config-item">
+        <strong>Port:</strong><br>
+        <code>{{ db_info.PORT }}</code>
+      </div>
+      <div class="config-item">
+        <strong>DATABASE_URL en ENV:</strong><br>
+        <code>{% if env_database_url %}✅ Sí{% else %}⚠️ No{% endif %}</code>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contadores de Datos -->
+  <div class="info-card">
+    <h2>📊 Datos en la Base de Datos</h2>
+    {% if counts.error %}
+      <p style="color: #f59e0b;">⚠️ Error al contar registros: {{ counts.error }}</p>
+    {% else %}
+      <div class="config-grid">
+        <div class="count-item">
+          <div class="count-number">{{ counts.emergencies }}</div>
+          <div>Emergencias</div>
+        </div>
+        <div class="count-item">
+          <div class="count-number">{{ counts.hospitals }}</div>
+          <div>Hospitales</div>
+        </div>
+        <div class="count-item">
+          <div class="count-number">{{ counts.forces }}</div>
+          <div>Fuerzas</div>
+        </div>
+        <div class="count-item">
+          <div class="count-number">{{ counts.vehicles }}</div>
+          <div>Vehículos</div>
+        </div>
+        <div class="count-item">
+          <div class="count-number">{{ counts.agents }}</div>
+          <div>Agentes</div>
+        </div>
+        <div class="count-item">
+          <div class="count-number">{{ counts.facilities }}</div>
+          <div>Instalaciones</div>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  <div style="text-align: center; margin-top: 30px;">
+    <a href="{% url 'dashboard' %}" class="btn" style="margin-right: 10px;">🏠 Volver al Dashboard</a>
+    <a href="{% url 'populate_database' %}" class="btn" style="background: var(--success);">📦 Poblar Datos</a>
+  </div>
+</div>
+{% endblock %}
