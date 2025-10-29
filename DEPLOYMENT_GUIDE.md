@@ -48,9 +48,9 @@ cd emergency_system && python manage.py migrate --noinput && python manage.py en
 |----------|-------|------|
 | `DATABASE_URL` | `postgresql://ova_user:...` | Auto por link a PostgreSQL |
 | `AI_PROVIDER` | `watson` | ⚠️ TODO EN MINÚSCULAS |
-| `WATSON_API_KEY` | `azE6dXNyX2U1NzUzNDU0...` | Tu API key de Watson |
-| `WATSON_INSTANCE_URL` | `https://api.dl.watson-orchestrate.ibm.com/instances/...` | Tu instancia de Watson |
-| `WATSON_IAM_URL` | `https://iam.platform.saas.ibm.com/siusermgr/api/1.0/apikeys/token` | Endpoint IAM (platform.saas) |
+| `WATSON_API_KEY` | `azE6dXNyX2U1NzUzNDU0LTVjZGUtM2UxMS04NTkyLWE1ZjA5ZDMwYmE3YzpaWmxTVHc4eGJJNGxLdjllMzd3MzNleHBCcjBLeEM5VWIwNktMRE8vZnR3PTpmUFc2` | Tu API key completa |
+| `WATSON_INSTANCE_URL` | `https://dl.watson-orchestrate.ibm.com` | ⚠️ SIN `api.` y SIN `/instances/...` |
+| `WATSON_IAM_URL` | `https://iam.platform.saas.ibm.com/siusermgr/api/1.0/apikeys/token` | Endpoint IAM para AWS Watson |
 
 ---
 

@@ -180,10 +180,10 @@ OPENAI_API_BASE = os.environ.get('OPENAI_API_BASE', 'https://api.openai.com/v1')
 WATSON_API_KEY = os.environ.get('WATSON_API_KEY')
 WATSON_INSTANCE_URL = os.environ.get(
     'WATSON_INSTANCE_URL',
-    'https://api.dl.watson-orchestrate.ibm.com/instances/28251824-1653-4080-8097-8efa6c69fba8'
+    'https://dl.watson-orchestrate.ibm.com'  # Corregido: sin api. y sin /instances/
 )
-# Endpoint IAM para intercambio de API key por token (platform.saas para oferta AWS, o iam.cloud.ibm.com clásico)
-WATSON_IAM_URL = os.environ.get('WATSON_IAM_URL', 'https://iam.cloud.ibm.com/identity/token')
+# Endpoint IAM para intercambio de API key por token (platform.saas para AWS Watson)
+WATSON_IAM_URL = os.environ.get('WATSON_IAM_URL', 'https://iam.platform.saas.ibm.com/siusermgr/api/1.0/apikeys/token')
 
 # Ollama (local, opcional)
 OLLAMA_BASE_URL = os.environ.get('OLLAMA_BASE_URL')
