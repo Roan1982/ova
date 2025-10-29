@@ -1070,9 +1070,11 @@ def create_emergencies(forces: Dict[str, Force]) -> List[Emergency]:
     Emergency.objects.bulk_create(emergencies)
 
     persisted = list(Emergency.objects.order_by("reported_at"))
-    for emergency in persisted:
-        if emergency.code in {"rojo", "amarillo"}:
-            emergency.ensure_multi_dispatch()
+    # NO calcular rutas durante populate (causa timeout)
+    # Las rutas se calcularán cuando se procese cada emergencia
+    # for emergency in persisted:
+    #     if emergency.code in {"rojo", "amarillo"}:
+    #         emergency.ensure_multi_dispatch()
 
     print(f"Emergencias creadas: {len(persisted)}")
     return persisted

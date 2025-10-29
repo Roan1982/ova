@@ -29,14 +29,14 @@
 ### **Start Command** (actualizar en Render):
 
 ```bash
-cd emergency_system && python manage.py migrate --noinput && python manage.py ensuresuperuser && python manage.py collectstatic --noinput && gunicorn emergency_app.wsgi:application --bind 0.0.0.0:$PORT
+cd emergency_system && python manage.py migrate --noinput && python manage.py ensuresuperuser && python manage.py collectstatic --noinput && gunicorn emergency_app.wsgi:application --bind 0.0.0.0:$PORT --timeout 120
 ```
 
 **Qué hace:**
 1. `migrate --noinput` → Aplica solo migraciones pendientes (no reaplica las existentes)
 2. `ensuresuperuser` → Crea superuser Admin si no existe
 3. `collectstatic --noinput` → Recolecta archivos estáticos
-4. `gunicorn` → Inicia servidor web
+4. `gunicorn --timeout 120` → Inicia servidor web con timeout de 120 segundos (necesario para operaciones largas)
 
 ---
 
@@ -58,7 +58,7 @@ cd emergency_system && python manage.py migrate --noinput && python manage.py en
 Ve a tu Web Service → **Settings** → **Build & Deploy** → **Start Command** y pega:
 
 ```bash
-cd emergency_system && python manage.py migrate --noinput && python manage.py ensuresuperuser && python manage.py collectstatic --noinput && gunicorn emergency_app.wsgi:application --bind 0.0.0.0:$PORT
+cd emergency_system && python manage.py migrate --noinput && python manage.py ensuresuperuser && python manage.py collectstatic --noinput && gunicorn emergency_app.wsgi:application --bind 0.0.0.0:$PORT --timeout 120
 ```
 
 ### 2. **Forzar Redeploy**
