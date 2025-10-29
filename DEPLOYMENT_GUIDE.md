@@ -8,7 +8,7 @@
 - ✅ Fallback a SQLite en desarrollo local
 
 ### 2. **Creación Automática de Superuser**
-- ✅ Command: `python manage.py create_superuser`
+- ✅ Command: `python manage.py ensuresuperuser`
 - Usuario: **Admin**
 - Email: **roaniamusic@gmail.com**
 - Password: **Coordinacion2031**
@@ -29,12 +29,12 @@
 ### **Start Command** (actualizar en Render):
 
 ```bash
-cd emergency_system && python manage.py migrate --noinput && python manage.py create_superuser && python manage.py collectstatic --noinput && gunicorn emergency_app.wsgi:application --bind 0.0.0.0:$PORT
+cd emergency_system && python manage.py migrate --noinput && python manage.py ensuresuperuser && python manage.py collectstatic --noinput && gunicorn emergency_app.wsgi:application --bind 0.0.0.0:$PORT
 ```
 
 **Qué hace:**
 1. `migrate --noinput` → Aplica solo migraciones pendientes (no reaplica las existentes)
-2. `create_superuser` → Crea superuser Admin si no existe
+2. `ensuresuperuser` → Crea superuser Admin si no existe
 3. `collectstatic --noinput` → Recolecta archivos estáticos
 4. `gunicorn` → Inicia servidor web
 
@@ -58,7 +58,7 @@ cd emergency_system && python manage.py migrate --noinput && python manage.py cr
 Ve a tu Web Service → **Settings** → **Build & Deploy** → **Start Command** y pega:
 
 ```bash
-cd emergency_system && python manage.py migrate --noinput && python manage.py create_superuser && python manage.py collectstatic --noinput && gunicorn emergency_app.wsgi:application --bind 0.0.0.0:$PORT
+cd emergency_system && python manage.py migrate --noinput && python manage.py ensuresuperuser && python manage.py collectstatic --noinput && gunicorn emergency_app.wsgi:application --bind 0.0.0.0:$PORT
 ```
 
 ### 2. **Forzar Redeploy**
