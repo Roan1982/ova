@@ -187,3 +187,21 @@ ROUTING_VEHICLE_CANDIDATES = int(os.environ.get('ROUTING_VEHICLE_CANDIDATES', '6
 ROUTING_AGENT_CANDIDATES = int(os.environ.get('ROUTING_AGENT_CANDIDATES', '4'))
 ROUTING_CACHE_SIZE = int(os.environ.get('ROUTING_CACHE_SIZE', '128'))
 OPENROUTE_BACKOFF_SECONDS = int(os.environ.get('OPENROUTE_BACKOFF_SECONDS', '120'))
+
+# === Archivos estáticos (CSS, JS, imágenes) ===
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'  # requerido para collectstatic
+
+# === Archivos de medios (fotos, etc) ===
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# === WhiteNoise para servir estáticos en producción ===
+MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
+
+# Permitir cache de archivos estáticos comprimidos
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
