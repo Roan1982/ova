@@ -2,7 +2,7 @@
 Django management command to create a superuser if it doesn't exist.
 
 Usage:
-    python manage.py create_superuser
+    python manage.py ensuresuperuser
 """
 
 from django.core.management.base import BaseCommand
