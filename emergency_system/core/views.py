@@ -1889,3 +1889,62 @@ def watson_webhook(request):
     logger.info('Watson webhook recibido: headers ok, payload type=%s', type(payload).__name__)
 
     return JsonResponse({'success': True, 'message': 'Webhook accepted', 'received': bool(payload)})
+
+
+def populate_database_view(request):
+    """Vista para poblar la base de datos con datos de ejemplo (solo para superusers)"""
+    if not request.user.is_superuser:
+        return JsonResponse({'success': False, 'error': 'Unauthorized - Superuser required'}, status=403)
+    
+    if request.method == 'POST':
+        try:
+            # Import populate logic
+            import sys
+            import random
+            from pathlib import Path
+            from django.db import transaction
+            
+            sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+            from scripts.populate_real_data import (
+                ensure_forces,
+                create_hospitals,
+                create_facilities,
+                populate_police_stations,
+                create_parking_spots,
+                create_vehicles,
+                create_agents,
+                create_emergencies,
+                reset_data,
+                RANDOM_SEED,
+            )
+            
+            random.seed(RANDOM_SEED)
+            
+            with transaction.atomic():
+                forces = ensure_forces()
+                reset_data()
+                hospitals = create_hospitals()
+                facilities = create_facilities(forces)
+                populate_police_stations(forces)
+                parking_spots = create_parking_spots()
+                vehicles = create_vehicles(forces, hospitals, facilities)
+                agents = create_agents(forces, hospitals, facilities, vehicles)
+                emergencies = create_emergencies(forces)
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Datos poblados exitosamente',
+                'data': {
+                    'hospitals': len(hospitals),
+                    'facilities': len(facilities),
+                    'parking_spots': len(parking_spots),
+                    'vehicles': len(vehicles),
+                    'agents': len(agents),
+                    'emergencies': len(emergencies),
+                }
+            })
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    
+    # GET: mostrar página simple con botón
+    return render(request, 'core/populate_data.html')

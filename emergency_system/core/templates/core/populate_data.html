@@ -1,0 +1,178 @@
+{% extends 'core/base.html' %}
+{% block title %}Poblar Base de Datos{% endblock %}
+
+{% block extra_styles %}
+<style>
+.populate-container {
+    max-width: 800px;
+    margin: 50px auto;
+    padding: 30px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 15px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+}
+.populate-card {
+    background: white;
+    padding: 30px;
+    border-radius: 10px;
+    text-align: center;
+}
+.populate-card h1 {
+    color: #333;
+    margin-bottom: 20px;
+}
+.populate-card p {
+    color: #666;
+    margin-bottom: 30px;
+    line-height: 1.6;
+}
+.btn-populate {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 15px 40px;
+    font-size: 18px;
+    font-weight: bold;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+.btn-populate:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.6);
+}
+.btn-populate:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.result {
+    margin-top: 30px;
+    padding: 20px;
+    border-radius: 8px;
+    display: none;
+}
+.result.success {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+}
+.result.error {
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+.spinner {
+    display: none;
+    margin: 20px auto;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #667eea;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="populate-container">
+    <div class="populate-card">
+        <h1>🚀 Poblar Base de Datos</h1>
+        <p>
+            <strong>⚠️ Atención:</strong> Esta acción eliminará todos los datos existentes y poblará la base de datos con datos de ejemplo que incluyen:
+        </p>
+        <ul style="text-align: left; display: inline-block; color: #666;">
+            <li>32 Hospitales de Buenos Aires</li>
+            <li>73 Comisarías de Policía</li>
+            <li>Cuarteles de Bomberos y Bases de Tránsito</li>
+            <li>~180 Vehículos (ambulancias, patrullas, etc.)</li>
+            <li>~250 Agentes operativos</li>
+            <li>12 Emergencias de ejemplo</li>
+            <li>12 Estacionamientos públicos</li>
+        </ul>
+        
+        <button id="populateBtn" class="btn-populate" onclick="populateDatabase()">
+            📦 Poblar Base de Datos
+        </button>
+        
+        <div class="spinner" id="spinner"></div>
+        
+        <div id="result" class="result"></div>
+        
+        <div style="margin-top: 30px;">
+            <a href="{% url 'dashboard' %}" class="btn" style="background: #6c757d; color: white; padding: 10px 20px; border-radius: 5px; text-decoration: none;">
+                ⬅️ Volver al Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+async function populateDatabase() {
+    const btn = document.getElementById('populateBtn');
+    const spinner = document.getElementById('spinner');
+    const result = document.getElementById('result');
+    
+    if (!confirm('⚠️ Esta acción eliminará TODOS los datos existentes. ¿Desea continuar?')) {
+        return;
+    }
+    
+    btn.disabled = true;
+    btn.textContent = '⏳ Poblando...';
+    spinner.style.display = 'block';
+    result.style.display = 'none';
+    
+    try {
+        const response = await fetch('{% url "populate_database" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        spinner.style.display = 'none';
+        result.style.display = 'block';
+        
+        if (data.success) {
+            result.className = 'result success';
+            result.innerHTML = `
+                <h3>✅ ${data.message}</h3>
+                <p><strong>Datos creados:</strong></p>
+                <ul style="text-align: left; display: inline-block;">
+                    <li>🏥 Hospitales: ${data.data.hospitals}</li>
+                    <li>🏢 Instalaciones: ${data.data.facilities}</li>
+                    <li>🅿️ Estacionamientos: ${data.data.parking_spots}</li>
+                    <li>🚗 Vehículos: ${data.data.vehicles}</li>
+                    <li>👮 Agentes: ${data.data.agents}</li>
+                    <li>🚨 Emergencias: ${data.data.emergencies}</li>
+                </ul>
+            `;
+            btn.textContent = '✅ Completado';
+            setTimeout(() => {
+                window.location.href = '{% url "dashboard" %}';
+            }, 3000);
+        } else {
+            result.className = 'result error';
+            result.innerHTML = `<h3>❌ Error</h3><p>${data.error}</p>`;
+            btn.disabled = false;
+            btn.textContent = '📦 Poblar Base de Datos';
+        }
+    } catch (error) {
+        spinner.style.display = 'none';
+        result.style.display = 'block';
+        result.className = 'result error';
+        result.innerHTML = `<h3>❌ Error</h3><p>${error.message}</p>`;
+        btn.disabled = false;
+        btn.textContent = '📦 Poblar Base de Datos';
+    }
+}
+</script>
+{% endblock %}
