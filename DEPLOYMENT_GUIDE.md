@@ -42,13 +42,15 @@ cd emergency_system && python manage.py migrate --noinput && python manage.py en
 
 ### **Variables de Entorno en Render** ✅ Ya configuradas:
 
-| Variable | Valor |
-|----------|-------|
-| `DATABASE_URL` | `postgresql://ova_user:...` (auto por link) |
-| `AI_PROVIDER` | `watson` |
-| `WATSON_API_KEY` | `azE6dXNyX2U1NzUzNDU0...` |
-| `WATSON_INSTANCE_URL` | `https://api.dl.watson-orchestrate.ibm.com/instances/...` |
-| `WATSON_IAM_URL` | `https://iam.platform.saas.ibm.com/siusermgr/api/1.0/apikeys/token` |
+⚠️ **IMPORTANTE**: Verifica que estas variables estén exactamente así en Render (Settings → Environment):
+
+| Variable | Valor | Nota |
+|----------|-------|------|
+| `DATABASE_URL` | `postgresql://ova_user:...` | Auto por link a PostgreSQL |
+| `AI_PROVIDER` | `watson` | ⚠️ TODO EN MINÚSCULAS |
+| `WATSON_API_KEY` | `azE6dXNyX2U1NzUzNDU0...` | Tu API key de Watson |
+| `WATSON_INSTANCE_URL` | `https://api.dl.watson-orchestrate.ibm.com/instances/...` | Tu instancia de Watson |
+| `WATSON_IAM_URL` | `https://iam.platform.saas.ibm.com/siusermgr/api/1.0/apikeys/token` | Endpoint IAM (platform.saas) |
 
 ---
 
@@ -110,9 +112,21 @@ Endpoint IAM: https://iam.platform.saas.ibm.com/...
 ## 🔍 Troubleshooting
 
 ### **Si aún muestra OpenAI en lugar de Watson:**
-1. Verifica que las variables de entorno estén en Render
-2. Fuerza un redeploy manual
-3. Revisa los logs del deploy
+1. **Verifica la variable `AI_PROVIDER` en Render:**
+   - Ve a Settings → Environment
+   - Busca `AI_PROVIDER`
+   - Debe estar escrita exactamente como: `watson` (todo en minúsculas)
+   - Si no existe o está mal escrita (ej: `Watson`, `WATSON`), edítala o créala
+2. **Verifica las otras variables de Watson:**
+   - `WATSON_API_KEY` debe tener tu API key completa
+   - `WATSON_INSTANCE_URL` debe apuntar a tu instancia
+   - `WATSON_IAM_URL` debe ser: `https://iam.platform.saas.ibm.com/siusermgr/api/1.0/apikeys/token`
+3. **Fuerza un redeploy manual:**
+   - Cualquier cambio en variables de entorno requiere redeploy
+   - Ve a Manual Deploy → Deploy latest commit
+4. **Revisa los logs del deploy:**
+   - Si hay errores de Watson, aparecerán en los logs
+   - Busca mensajes como "Watson Orchestrate conectado" o errores de token IAM
 
 ### **Si no puede conectarse a PostgreSQL:**
 1. Verifica que `DATABASE_URL` esté configurada

@@ -167,7 +167,7 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Configuración de IA en la nube
-AI_PROVIDER = os.environ.get('AI_PROVIDER', 'openai')
+AI_PROVIDER = os.environ.get('AI_PROVIDER', 'watson')  # Default cambiado a watson
 AI_TIMEOUT = int(os.environ.get('AI_TIMEOUT', '20'))
 AI_MAX_RETRIES = int(os.environ.get('AI_MAX_RETRIES', '3'))
 
