@@ -84,25 +84,30 @@ WSGI_APPLICATION = 'emergency_app.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-#DATABASES = {
-#    'default': {
-2        'ENGINE': #'django.db.backends.sqlite3',
-#        'NAME': BASE_DIR / 'db.sqlite3',
-#    }
-#}
+# Database
+# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
+}
 
+# Si más adelante querés usar PostgreSQL en Render, descomentá este bloque y
+# comentá el anterior.
+"""
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'ova',  # Nombre de la base
         'USER': 'ova_user',  # Usuario
-        'PASSWORD': os.environ.get('DB_PASSWORD'),  # la vas a guardar en Render
-        'HOST': 'dpg-d40kcrur433s738fcmr0-a',  # el hostname que mostraste
+        'PASSWORD': os.environ.get('DB_PASSWORD'),
+        'HOST': 'dpg-d40kcrur433s738fcmr0-a',
         'PORT': '5432',
     }
 }
-
+"""
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
